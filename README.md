@@ -24,9 +24,9 @@ geometry commands.
 > program these scripts work with. You need your own licensed copy of MoI.
 
 > [!WARNING]
-> **Use with caution.** These are spare-time tools. The geometry is tested, but the command panel
-> has not yet been checked at a desk (see [Testing status](#testing-status)), so expect rough edges.
-> Save your work before you run one, and keep backups of anything that matters. You use them at your
+> **Use with caution.** These are spare-time tools that change your model. Every script says what
+> has been tested and what has not (see [Testing status](#testing-status)) — read that before you
+> run one on work that matters. Save first, keep backups, and check the result. You use them at your
 > own risk (see [Disclaimer](#disclaimer)).
 
 ---
@@ -99,8 +99,13 @@ screen recording of a run.
 
 ## Testing status
 
-MultiPipe is a first release. Its geometry is well covered; its command panel is not, because MoI's
-command panel cannot be driven by a script — only by a person at the keyboard.
+One section per script, saying what is covered and what is not. Read the one for the script you are
+about to use.
+
+### MultiPipe
+
+A first release. Its geometry is well covered; its command panel is not, because MoI's command
+panel cannot be driven by a script — only by a person at the keyboard.
 
 **Tested automatically, on every change:** the planning — which curve becomes which strut, where
 nodes are, straight nodes, closed curves, duplicates, crossings (22 tests) — and the geometry, by
