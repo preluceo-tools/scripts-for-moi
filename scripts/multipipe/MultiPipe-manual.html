@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MultiPipe for MoI &mdash; Manual</title>
+<style>
+  body { font: 16px/1.55 "Segoe UI", system-ui, sans-serif; color: #222; background: #fff;
+         max-width: 46em; margin: 2em auto; padding: 0 1em; }
+  h1 { font-size: 1.9em; margin-bottom: 0; }
+  h2 { margin-top: 2em; border-bottom: 1px solid #ddd; padding-bottom: .2em; }
+  h3 { margin-top: 1.5em; font-size: 1.1em; }
+  code, kbd { font-family: Consolas, "Courier New", monospace; background: #f4f4f4;
+              padding: .08em .3em; border-radius: 3px; font-size: .92em; }
+  pre { background: #f4f4f4; padding: .8em 1em; overflow-x: auto; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+  th, td { border: 1px solid #ccc; padding: .45em .6em; text-align: left; vertical-align: top; font-size: .95em; }
+  th { background: #f0f0f0; }
+  .lead { color: #555; font-size: 1.05em; }
+  .note { background: #f7f7ef; border-left: 4px solid #c9c07a; padding: .7em 1em; margin: 1em 0; }
+</style>
+</head>
+<body>
+
+<h1>MultiPipe</h1>
+<p class="lead">Turn a network of curves into one solid pipe frame, inside MoI, in a single step.</p>
+
+<p>MultiPipe sweeps a pipe along every curve you select, puts a joint where struts meet, and unions
+everything into one closed solid. Your input curves are kept. The whole result is a single undo step.</p>
+
+<h2>Install</h2>
+
+<p>MultiPipe is a MoI command: installing it is copying files. Nothing has to be downloaded or run
+in the background.</p>
+
+<ol>
+  <li>Copy these files into your MoI commands folder:
+    <ul>
+      <li><code>MultiPipe.js</code></li>
+      <li><code>MultiPipe.htm</code></li>
+      <li><code>MultiPipePlanner.js</code></li>
+      <li><code>MultiPipeBuilder.js</code></li>
+    </ul>
+    The commands folder is <code>%APPDATA%\Moi\commands\</code> on Windows
+    (e.g. <code>...\AppData\Roaming\Moi\commands\</code>). On macOS it is
+    <code>&lt;MoI application support folder&gt;/commands/</code>.
+    <br>If you prefer, the commands folder inside the MoI install
+    (<code>&lt;MoI install folder&gt;\commands\</code>) works too, but a command kept in
+    <code>%APPDATA%</code> survives a MoI upgrade, so it does not need reinstalling.
+  </li>
+  <li>Restart MoI.</li>
+  <li>Type <code>MultiPipe</code> on MoI's command line and press <kbd>Enter</kbd>.</li>
+</ol>
+
+<h3>Optional: a shortcut key</h3>
+<p>In MoI, open <em>Options &rarr; Shortcut keys</em>, add an entry, put the key you want in the left
+column and <code>MultiPipe</code> in the right column. The same name works on a custom toolbar button.</p>
+
+<div class="note">MoI caches a command script the first time it runs. If you replace the files with a
+newer copy, restart MoI.</div>
+
+<h2>Running the command</h2>
+
+<ol>
+  <li><strong>Select the curves.</strong> If curves are already selected when you start the command, they
+    are used straight away. Otherwise you are asked to pick them:
+    <em>&ldquo;Select curves for MultiPipe, then press Done&rdquo;</em>. Only curves are picked up;
+    solids, surfaces and points in the selection are ignored.</li>
+  <li><strong>Set the options</strong> in the command panel
+    (<em>&ldquo;Set the options, then press Done&rdquo;</em>) and press <em>Done</em>.
+    Your values are remembered for the next run.</li>
+  <li><strong>Wait for the build.</strong> The panel shows
+    <em>&ldquo;Building <span>n</span> struts...&rdquo;</em> while MoI works. On a large frame the union
+    takes a while and MoI will not repaint during it; this message is there so you know it has not hung.</li>
+  <li><strong>Read the summary</strong> and press <em>Done</em> to add the pipe frame to your document, or
+    <em>Cancel</em> to add nothing. Nothing reaches the document before that last <em>Done</em>, so pressing
+    <em>Cancel</em> at any point leaves your model untouched.</li>
+</ol>
+
+<p>One <kbd>Ctrl</kbd>+<kbd>Z</kbd> removes the whole result.</p>
+
+<h2>Options</h2>
+
+<table>
+  <tr><th>Option</th><th>Default</th><th>What it does</th></tr>
+  <tr>
+    <td>Strut radius</td><td>0.5</td>
+    <td>The radius of each pipe, as a distance in your document units. Must be greater than zero.
+      Large radii on short struts can make a strut impossible to build.</td>
+  </tr>
+  <tr>
+    <td>Node size</td><td>1.2</td>
+    <td>The ball joint's radius as a multiple of the strut radius, so joints scale with the pipe whatever
+      your units are. Values below 1.02 are raised to 1.02, because a ball no bigger than the pipe gives
+      an unreliable union.</td>
+  </tr>
+  <tr>
+    <td>Joint style</td><td>Ball (Filleted off)</td>
+    <td>Off: each joint is a ball slightly larger than the struts &mdash; the fast, reliable style.
+      On: the creases around the joints are rounded with a fillet.</td>
+  </tr>
+  <tr>
+    <td>Fillet factor</td><td>0.2</td>
+    <td>Only shown when <em>Filleted</em> is on. The fillet radius as a fraction of the strut radius.
+      Must be greater than zero. A large factor is more likely to fail; if the fillet fails, the whole
+      frame keeps its ball joints.</td>
+  </tr>
+  <tr>
+    <td>Cap</td><td>On</td>
+    <td>On: free ends are closed with a flat cap, so the result is a closed solid you can export for
+      printing. Off: free ends are left open as tube ends, the rest of the frame still one body.</td>
+  </tr>
+</table>
+
+<h2>What MultiPipe does with your curves</h2>
+
+<ul>
+  <li><strong>Lines and smooth curves</strong> become one strut each; a <strong>polyline</strong> becomes
+    one strut per segment, with a joint at every corner.</li>
+  <li><strong>Nodes.</strong> Curve ends closer together than the document tolerance count as meeting at
+    one node. Any node where two or more struts meet gets a joint, including nodes of three, four, five,
+    six or more struts.</li>
+  <li><strong>Straight nodes.</strong> Where exactly two struts meet with a bend under 5&deg;, no joint is
+    made: the pipe runs straight through as one continuous strut. The 5&deg; threshold is fixed.</li>
+  <li><strong>Free ends.</strong> A strut end touching nothing is a free end, capped or open per the
+    <em>Cap</em> option.</li>
+  <li><strong>Closed curves</strong> (a circle, a closed freeform curve) become a closed ring pipe with no
+    nodes and no free ends.</li>
+  <li><strong>Duplicate curves</strong> &mdash; same ends in either direction and the same shape between
+    them &mdash; are dropped, and counted in the summary.</li>
+  <li><strong>Crossings</strong> &mdash; two curves passing through each other without sharing an end
+    &mdash; are left unjoined and warned about. See <a href="#limits">Known limits</a>.</li>
+</ul>
+
+<h2>Messages</h2>
+
+<h3>Prompts</h3>
+<table>
+  <tr><th>Message</th><th>Meaning</th></tr>
+  <tr><td>Select curves for MultiPipe, then press Done</td><td>Nothing was selected, so pick the curves now.</td></tr>
+  <tr><td>Set the options, then press Done</td><td>The curves are locked in; set radius, node size, joint style and cap.</td></tr>
+  <tr><td>Building <em>n</em> struts...</td><td>The frame is being swept and unioned. The count is the number of struts.</td></tr>
+  <tr><td>Press Done to continue, or Cancel to add nothing</td><td>The build finished. Done commits it, Cancel discards it.</td></tr>
+</table>
+
+<h3>Summary</h3>
+<p>The first summary line always reads, for example,
+<em>&ldquo;12 struts, 5 joints, 2 straight nodes, 4 free ends&rdquo;</em>: how many pipes were built, how
+many joints filled, how many nodes the pipe ran straight through, and how many ends were left free.
+Further lines appear only when they apply:</p>
+
+<table>
+  <tr><th>Line</th><th>Meaning</th></tr>
+  <tr><td><em>n</em> duplicate curve segments dropped.</td>
+      <td>Your selection contained curves lying on top of each other. Only one of each was used.</td></tr>
+  <tr><td><em>n</em> crossings left unjoined.</td>
+      <td>Curves pass through each other mid-span. Those pipes intersect but are not joined at the
+        crossing. A warning line names each one.</td></tr>
+  <tr><td>Joined by the slower step-by-step union.</td>
+      <td>The one-shot union did not produce a complete solid, so the frame was rebuilt joint by joint.
+        The result is a normal complete solid; this line is just why it took longer.</td></tr>
+  <tr><td>Free ends left open.</td>
+      <td><em>Cap</em> was off and the cap faces were successfully removed.</td></tr>
+</table>
+
+<h3>Warnings</h3>
+<table>
+  <tr><th>Warning</th><th>What to do</th></tr>
+  <tr><td>Curves cross without sharing an end near (x, y, z); left unjoined.</td>
+      <td>Nothing, if you meant them to pass through. To have them joined, split both curves at that point
+        and run MultiPipe again.</td></tr>
+  <tr><td>The filleted joints could not be made, so the pipe frame kept its ball joints; try a smaller
+        fillet factor.</td>
+      <td>Lower the fillet factor and run again, or keep the ball joints. The fallback is for the whole
+        frame, so you always get one predictable result.</td></tr>
+  <tr><td>The free ends could not be opened, so the pipe frame was left capped.</td>
+      <td>The result is a valid closed solid; the cap faces could not be identified and removed. Delete
+        them by hand if you need open ends.</td></tr>
+  <tr><td>The union did not give one solid, even after a retry; struts and joints were kept as separate
+        objects.</td>
+      <td>The struts and joints are still added, so no work is lost. Union them by hand, or nudge the
+        awkward node and run MultiPipe again.</td></tr>
+</table>
+
+<h3>Errors (nothing is added)</h3>
+<table>
+  <tr><th>Error</th><th>Cause</th></tr>
+  <tr><td>Select at least one curve.</td><td>No curve was picked.</td></tr>
+  <tr><td>Curve <em>n</em> has zero length.</td><td>That curve's ends are within tolerance of each other and it has no shape between them.</td></tr>
+  <tr><td>Strut radius must be greater than zero.</td><td>The radius was zero or negative.</td></tr>
+  <tr><td>Fillet factor must be greater than zero.</td><td><em>Filleted</em> is on and the factor was zero or negative.</td></tr>
+  <tr><td>Strut <em>n</em> could not be built; try a smaller strut radius.</td>
+      <td>The pipe could not be swept, usually because the radius is large compared with that curve.</td></tr>
+  <tr><td>Strut <em>n</em> could not be built.</td><td>The rail curve for that strut could not be made.</td></tr>
+  <tr><td>Joint <em>n</em> could not be built.</td><td>The ball at that node could not be made.</td></tr>
+</table>
+
+<h2 id="limits">Known limits</h2>
+
+<ul>
+  <li><strong>Crossings are not split.</strong> Curves that pass through each other mid-span are warned
+    about and left unjoined. Split them yourself where you want a node.</li>
+  <li><strong>The fillet fallback is whole-frame.</strong> If the filleted joints fail anywhere, the entire
+    frame keeps its ball joints rather than a mixture.</li>
+  <li><strong>Filleted joints are slow on large frames.</strong> A dense frame has hundreds of joint
+    edges, and filleting them can take minutes. Ball joints are the practical choice for large frames;
+    fillet a small frame first to find a factor that works.</li>
+  <li><strong>No wall thickness.</strong> The pipes are solid, not hollow tubes.</li>
+  <li><strong>No live preview.</strong> You see the result after the build, before committing it.</li>
+  <li><strong>One radius for the whole frame.</strong> No per-node or variable strut size.</li>
+  <li><strong>The straight-node threshold is fixed at 5&deg;</strong> and is not an option.</li>
+</ul>
+
+<h2 id="tested">What has been tested, and what has not</h2>
+
+<p>This is a first release. The geometry is well covered by automated tests; the command panel is
+not, because MoI's command panel cannot be driven by a script &mdash; only by a person at the
+keyboard.</p>
+
+<p><strong>Tested automatically, on every change:</strong> the planning &mdash; which curve becomes
+which strut, where nodes are, straight nodes, closed curves, duplicates, crossings &mdash; and the
+geometry, by building 26 test frames inside MoI and checking each result: the ball joints, the
+union and its step-by-step retry, the filleted joints and their fallback, capped and open ends, and
+a 300-strut frame.</p>
+
+<p><strong>Not covered by any automated test, so worth a careful first look:</strong></p>
+
+<table>
+  <tr><th>Area</th><th>What that means for you</th></tr>
+  <tr><td>The command panel and the whole run flow</td>
+      <td>The option fields, the prompts, the summary area, <em>Done</em> and <em>Cancel</em> at each
+        step, the options being remembered between runs, the <em>Fillet factor</em> row appearing with
+        <em>Filleted</em>, the building message, and one <kbd>Ctrl</kbd>+<kbd>Z</kbd> removing the whole
+        result.</td></tr>
+  <tr><td>Installing, and the command being found</td>
+      <td>Copying the files into the commands folder, MoI finding the planner and builder beside the
+        command, running it by name, and binding it to a shortcut key or a toolbar button.</td></tr>
+  <tr><td>Curves picked in a live document</td>
+      <td>The step that turns your selection into struts: ignoring the non-curve objects in a
+        selection, and splitting a joined multi-segment curve. The tests build their curves rather
+        than picking them.</td></tr>
+  <tr><td>The panel's error messages</td>
+      <td>A zero radius or a zero fillet factor. The checks themselves are tested; the panel showing
+        the message is not.</td></tr>
+  <tr><td>The separate-pieces fallback</td>
+      <td>What you see when a union cannot be completed at all. It is tested only by forcing the
+        failure in code; no real frame has produced it.</td></tr>
+  <tr><td>macOS</td>
+      <td>Written to be portable, but never run there. Everything above was checked on Windows.</td></tr>
+</table>
+
+<div class="note">Nothing reaches your document until the final <em>Done</em>, and one
+<kbd>Ctrl</kbd>+<kbd>Z</kbd> takes back what it added &mdash; so trying it costs you a keystroke.
+Save your work first anyway, and please report whatever you find.</div>
+
+<h2>Built with</h2>
+
+<p><strong>Nothing has to be downloaded. MultiPipe uses only MoI's own scripting API and MoI's stock
+command factories &mdash; everything it needs already ships with MoI.</strong></p>
+
+<table>
+  <tr><th>Component</th><th>What the tool uses it for</th><th>Where it comes from</th><th>License</th></tr>
+  <tr>
+    <td>MoI script API &mdash; <code>moi.geometryDatabase</code>, <code>moi.ui</code>,
+      <code>moi.command</code>, <code>moi.vectorMath</code></td>
+    <td>Reading the selection and the document tolerance, the object picker, the command panel and its
+      Done/Cancel loop, adding the result, and point/frame math.</td>
+    <td>Ships with MoI &mdash; <a href="http://moi3d.com">moi3d.com</a></td>
+    <td>Commercial (MoI is paid software; its license covers the API)</td>
+  </tr>
+  <tr>
+    <td>MoI stock command factories &mdash; <code>line</code>, <code>polyline</code>, <code>circle</code>,
+      <code>sweep</code>, <code>sphere</code>, <code>join</code>, <code>separate</code>,
+      <code>booleanunion</code>, <code>fillet</code>, <code>delete</code></td>
+    <td>All the geometry: sweeping the struts, the ball joints, joining rails, the union, the joint
+      fillets and removing cap faces.</td>
+    <td>Ships with MoI &mdash; <a href="http://moi3d.com">moi3d.com</a></td>
+    <td>Commercial (part of MoI)</td>
+  </tr>
+  <tr>
+    <td>MoI command UI markup &mdash; <code>moi:DistanceInput</code>, <code>moi:NumericInput</code>,
+      <code>moi:CheckButton</code>, <code>moi:CommandDoneCancel</code>, <code>moi://ui/moi.css</code></td>
+    <td>The command panel: the option fields, the Done/Cancel buttons and MoI's own styling.</td>
+    <td>Ships with MoI &mdash; <a href="http://moi3d.com">moi3d.com</a></td>
+    <td>Commercial (part of MoI)</td>
+  </tr>
+  <tr>
+    <td>JavaScript (ECMAScript 5) built-ins &mdash; <code>Math</code>, <code>Date</code>,
+      <code>Array</code>, <code>Number</code>, <code>String</code></td>
+    <td>Geometry math, the build timing, and formatting the summary text.</td>
+    <td>MoI's built-in script engine &mdash;
+      <a href="https://ecma-international.org/publications-and-standards/standards/ecma-262/">ECMA-262</a></td>
+    <td>Open standard, free to implement and use</td>
+  </tr>
+</table>
+
+<p>MultiPipe has no third-party libraries, no package manager, no runtime downloads and no external
+process. It does not use any LGPL component.</p>
+
+<h2>License</h2>
+
+<p><strong>The code</strong> (<code>MultiPipe.js</code>, <code>MultiPipe.htm</code>,
+<code>MultiPipePlanner.js</code>, <code>MultiPipeBuilder.js</code>) is released under the
+<strong>GNU General Public License, version 3</strong>. You may use it, study it, change it and pass it
+on, including changed versions, as long as those versions travel under the same license with their source.
+The full text ships beside the command as <code>LICENSE.txt</code>, and is at
+<a href="https://www.gnu.org/licenses/gpl-3.0.html">gnu.org/licenses/gpl-3.0.html</a>.</p>
+
+<p><strong>This manual</strong> and the other prose are released under
+<strong>Creative Commons Attribution 4.0 International (CC BY 4.0)</strong>: copy it, translate it, adapt
+it, quote it, for any purpose, as long as you credit the source. Full text at
+<a href="https://creativecommons.org/licenses/by/4.0/">creativecommons.org/licenses/by/4.0/</a>.</p>
+
+<p>MultiPipe bundles no LGPL component. MoI itself is separate commercial software, not distributed with
+MultiPipe; you need your own copy, and nothing here grants any right to it.</p>
+
+<p><em>This summary is not a license. Only the license texts themselves are binding &mdash;
+<a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL v3</a> and
+<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</em></p>
+
+</body>
+</html>

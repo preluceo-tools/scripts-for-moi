@@ -1,0 +1,11 @@
+# Local tooling and machine-specific config
+.mcp.json
+*.code-workspace
+node_modules/
+sample_video/
+
+# Agent workspace: issue tracker, domain docs, developer notes. Not published.
+.scratch/
+docs/
+CONTEXT.md
+CLAUDE.md

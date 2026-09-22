@@ -1,0 +1,25 @@
+<html xmlns:moi>
+	<head>
+		<link rel="stylesheet" href="moi://ui/moi.css" type="text/css">
+	</head>
+	<body class="commandbody">
+		<div class="commandheader">
+			<div id="SelectPrompt" class="commandprompt">Select curves for MultiPipe, then press Done</div>
+			<div id="OptionsPrompt" class="hiddencommandui">Set the options, then press Done</div>
+			<div id="BuildingPrompt" class="hiddencommandui">Building the pipe frame, please wait</div>
+			<div id="SummaryPrompt" class="hiddencommandui">Press Done to continue, or Cancel to add nothing</div>
+		</div>
+		<table id="Options" class="hiddencommandui">
+			<tr><td>Strut radius:</td><td><moi:DistanceInput id="radius" default="0.5" /></td></tr>
+			<tr><td>Node size:</td><td><moi:NumericInput id="nodesize" default="1.2" /></td></tr>
+			<!-- Joint style is a checkbox, not a Ball / Filleted moi:Select: a moi:Option takes its label from a
+			     textid in MoI's string table, which has no Ball or Filleted entry, so those labels could come out blank.
+			     The fillet factor only means anything for filleted joints, so its row follows the checkbox. -->
+			<tr><td>Joint style:</td><td><moi:CheckButton id="filleted" default="false" onclick="moi.ui.beginUIUpdate(); if ( this.value ) moi.ui.showUI( 'FilletRow' ); else moi.ui.hideUI( 'FilletRow' ); moi.ui.endUIUpdate();">Filleted</moi:CheckButton></td></tr>
+			<tr id="FilletRow" style="display:none;"><td>Fillet factor:</td><td><moi:NumericInput id="filletfactor" default="0.2" /></td></tr>
+			<tr><td>Cap:</td><td><moi:CheckButton id="cap" default="true">On</moi:CheckButton></td></tr>
+		</table>
+		<div id="Summary" class="hiddencommandui"></div>
+		<moi:CommandDoneCancel />
+	</body>
+</html>

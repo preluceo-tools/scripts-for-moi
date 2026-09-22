@@ -1,0 +1,88 @@
+{
+  "_about": "MultiPipe sample scenes. Units: inches. Each scene is a list of curves: line and polyline give vertex lists, interp gives interpolated points, circle gives a center and radius in the XY plane. A scene with 'grid' is generated: n cells per side, spacing s.",
+  "y": [
+    { "type": "line", "pts": [[0, 0, 0], [10, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [-5, 8.66025, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [-5, -8.66025, 0]] }
+  ],
+  "t": [
+    { "type": "line", "pts": [[-10, 0, 0], [0, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [10, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 10, 0]] }
+  ],
+  "node4": [
+    { "type": "line", "pts": [[0, 0, 0], [5.7735, 5.7735, 5.7735]] },
+    { "type": "line", "pts": [[0, 0, 0], [5.7735, -5.7735, -5.7735]] },
+    { "type": "line", "pts": [[0, 0, 0], [-5.7735, 5.7735, -5.7735]] },
+    { "type": "line", "pts": [[0, 0, 0], [-5.7735, -5.7735, 5.7735]] }
+  ],
+  "node4x50": [
+    { "type": "line", "pts": [[50, 0, 0], [55.7735, 5.7735, 5.7735]] },
+    { "type": "line", "pts": [[50, 0, 0], [55.7735, -5.7735, -5.7735]] },
+    { "type": "line", "pts": [[50, 0, 0], [44.2265, 5.7735, -5.7735]] },
+    { "type": "line", "pts": [[50, 0, 0], [44.2265, -5.7735, 5.7735]] }
+  ],
+  "node5": [
+    { "type": "line", "pts": [[0, 0, 0], [10, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 10, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [-10, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, -10, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 0, 10]] }
+  ],
+  "node6": [
+    { "type": "line", "pts": [[0, 0, 0], [10, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [-10, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 10, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, -10, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 0, 10]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 0, -10]] }
+  ],
+  "node6tight": [
+    { "type": "line", "pts": [[0, 0, 0], [5.7358, 0, 8.1915]] },
+    { "type": "line", "pts": [[0, 0, 0], [2.8679, 4.9673, 8.1915]] },
+    { "type": "line", "pts": [[0, 0, 0], [-2.8679, 4.9673, 8.1915]] },
+    { "type": "line", "pts": [[0, 0, 0], [-5.7358, 0, 8.1915]] },
+    { "type": "line", "pts": [[0, 0, 0], [-2.8679, -4.9673, 8.1915]] },
+    { "type": "line", "pts": [[0, 0, 0], [2.8679, -4.9673, 8.1915]] }
+  ],
+  "acute": [
+    { "type": "line", "pts": [[0, 0, 0], [10, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [9.3969, 3.4202, 0]] }
+  ],
+  "polyline": [
+    { "type": "polyline", "pts": [[0, 0, 0], [10, 0, 0], [10, 10, 0], [17.0711, 17.0711, 0], [23.8911, 24.3849, 0], [13.8972, 24.0359, 0]] }
+  ],
+  "smooth": [
+    { "type": "interp", "pts": [[0, 0, 0], [5, 5, 3], [10, 0, 6], [15, 5, 6]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, -10, 0]] },
+    { "type": "line", "pts": [[15, 5, 6], [25, 5, 6]] }
+  ],
+  "crossing": [
+    { "type": "line", "pts": [[-10, 0, 0], [10, 0, 0]] },
+    { "type": "line", "pts": [[0, -10, 0], [0, 10, 0]] },
+    { "type": "line", "pts": [[10, 0, 0], [10, 10, 0]] }
+  ],
+  "freeends": [
+    { "type": "line", "pts": [[0, 0, 0], [10, 0, 0]] },
+    { "type": "line", "pts": [[10, 0, 0], [10, 10, 0]] }
+  ],
+  "duplicates": [
+    { "type": "line", "pts": [[0, 0, 0], [10, 0, 0]] },
+    { "type": "line", "pts": [[10, 0, 0], [0, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [10, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 10, 0]] }
+  ],
+  "straight": [
+    { "type": "line", "pts": [[0, 0, 0], [10, 0, 0]] },
+    { "type": "line", "pts": [[10, 0, 0], [20, 0, 0]] },
+    { "type": "line", "pts": [[20, 0, 0], [20, 10, 0]] }
+  ],
+  "circle": [
+    { "type": "circle", "center": [0, 0, 0], "radius": 10 }
+  ],
+  "ring": [
+    { "type": "circle", "center": [0, 0, 0], "radius": 10 },
+    { "type": "line", "pts": [[0, 10, 0], [0, 20, 0]] }
+  ],
+  "lattice": { "grid": { "n": 4, "s": 10 } }
+}
