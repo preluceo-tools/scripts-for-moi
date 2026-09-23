@@ -13,9 +13,18 @@
 // open boundary (its naked edges join into one closed loop), and a frame without free ends must still be a closed
 // solid. arcframe, helix and ring are smooth curves (an interpolated half circle in a frame, a two-turn helix, a closed
 // circle, which must come in as one closed tube with no node). The 'N=3' runs repeat some with Divisions 3 and must still come in as closed solids.
+// Last comes 'lattice', a generated 4 x 4 x 4 grid (300 struts, 125 nodes, Radius 0.5): one closed solid, with its
+// planner (describe plus plan), write and import times recorded separately (write is objLines plus writing the OBJ;
+// import is importCage less that write).
 // Returns { passed, failed: [ { scene, reason } ], results: [ { scene, ms, objects } ] }.
+//
+// The whole run can outlast the bridge's 30 s call timeout. The timed-out call keeps running inside MoI and leaves
+// the result in the global MULTIPIPE2_SUITE; read it back with a follow-up moi_eval of:
+//
+//   return typeof MULTIPIPE2_SUITE == 'undefined' ? 'still running' : MULTIPIPE2_SUITE;
 
 function runMoiSuite(root) {
+  MULTIPIPE2_SUITE = undefined;   // so a follow-up read cannot return an earlier run's result
   function read(path) {
     var s = moi.filesystem.openFileStream(root + path, 'r'), t = '';
     while (!s.AtEOF) t += s.readLine() + '\n';
@@ -102,6 +111,45 @@ function runMoiSuite(root) {
     if (objs.length) gd.removeObjects(objs);
     if (reason) out.failed.push({ scene: label, reason: reason }); else out.passed++;
   }
+  // Large frame: time each stage; the import must give one closed solid.
+  var L = [], g = 4, S = 10, a, c, d;
+  for (a = 0; a <= g; a++) for (c = 0; c <= g; c++) for (d = 0; d <= g; d++) {
+    if (a < g) L.push({ type: 'line', pts: [[a * S, c * S, d * S], [a * S + S, c * S, d * S]] });
+    if (c < g) L.push({ type: 'line', pts: [[a * S, c * S, d * S], [a * S, c * S + S, d * S]] });
+    if (d < g) L.push({ type: 'line', pts: [[a * S, c * S, d * S], [a * S, c * S, d * S + S]] });
+  }
+  curves = gd.createObjectList();
+  for (i = 0; i < L.length; i++) curves.addObject(curve(L[i]));
+  var t = new Date().getTime(), lat = { scene: 'lattice' }, why = '';
+  cage = plan(describe(curves), { radius: 0.5, nodeSize: 1.6, cap: true, tolerance: tol });
+  lat.planMs = new Date().getTime() - t;
+  out.results.push(lat);
+  if (cage.report.errors.length) why = cage.report.errors.join('; ');
+  else if (cage.report.struts !== 300 || cage.report.nodes !== 125) why = cage.report.struts + ' struts and ' + cage.report.nodes + ' nodes, expected 300 and 125';
+  else {
+    var wpath = moi.filesystem.getTempDir() + 'MultiPipe2-write-timing.obj', lines, ws;
+    t = new Date().getTime();
+    lines = objLines(cage); ws = moi.filesystem.openFileStream(wpath, 'w');
+    try { for (i = 0; i < lines.length; i++) ws.writeLine(lines[i]); } finally { ws.close(); moi.filesystem.deleteFile(wpath); }
+    lat.writeMs = new Date().getTime() - t;
+    t = new Date().getTime();
+    objs = importCage(cage);
+    lat.importMs = new Date().getTime() - t - lat.writeMs;
+    lat.totalMs = lat.planMs + lat.writeMs + lat.importMs;
+    lat.objects = objs.length;
+    if (objs.length !== 1 || !objs.item(0).isSolidBRep) why = 'expected one closed solid, got ' + objs.length + ' objects';
+    else if (boundaries(objs.item(0)) !== 0) why = 'open boundaries on the lattice';
+    else if (moi.filesystem.fileExists(tmp)) why = 'temp file left behind';
+    else {
+      b = objs.item(0).getBoundingBox();
+      why = checkImport(cage.box, [[b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z]], tol);
+    }
+    if (objs.length) gd.removeObjects(objs);
+  }
+  if (why) out.failed.push({ scene: 'lattice', reason: why }); else out.passed++;
+
   if (gd.getObjects().length !== before) out.failed.push({ scene: '*', reason: 'document changed' });
+  // The run can outlast the bridge's call timeout, so the result is left in a global for a follow-up call to read.
+  MULTIPIPE2_SUITE = out;
   return out;
 }

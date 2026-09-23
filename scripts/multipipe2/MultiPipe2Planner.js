@@ -104,7 +104,8 @@ function closest(p0, p1, q0, q1) {
 }
 
 // Convex hull facets of a small point set, each ordered around its normal.
-// ponytail: brute force, O(n^4) in a node's ring vertices (4 per strut); fine to ~10 struts a node.
+// ponytail: brute force, O(n^4) in a node's ring vertices (4 per strut, so n = 40 at 10 struts); fine to about
+// 10 struts a node. Past that, swap in a real hull algorithm (e.g. incremental or quickhull, O(n log n)).
 function hullFacets(P) {
   var seen = {}, out = [], n = P.length, scale = 1, i, j, k, m;
   for (i = 0; i < n; i++) scale = Math.max(scale, len(P[i]));

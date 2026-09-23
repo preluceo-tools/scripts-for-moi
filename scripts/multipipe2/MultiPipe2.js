@@ -101,15 +101,17 @@ function MultiPipe2() {
   moi.ui.commandUI.divisions.disabled = moi.ui.commandUI.auto.value;
   if (!waitForDone()) return;
 
-  var ui = moi.ui.commandUI, cap = ui.cap.value;
-  var cage = plan(describe(curves), { radius: ui.radius.value, nodeSize: ui.nodesize.value,
+  // The count before planning is the input segments; duplicates the planner drops are still in it.
+  var ui = moi.ui.commandUI, cap = ui.cap.value, input = describe(curves), segments = 0, i;
+  for (i = 0; i < input.length; i++) segments += input[i].kind == 'polyline' ? input[i].points.length - 1 : 1;
+  show('BuildingPrompt', 'Building ' + plural(segments, 'strut') + '...');
+  var cage = plan(input, { radius: ui.radius.value, nodeSize: ui.nodesize.value,
     divisions: ui.auto.value ? 'auto' : ui.divisions.value, cap: cap,
     tolerance: moi.geometryDatabase.tolerance });
   var r = cage.report;
   if (r.errors.length) { stop(r.errors.join('<br>')); return; }
 
-  show('BuildingPrompt', 'Building ' + plural(r.struts, 'strut') + '...');
-  var objs = importCage(cage), boxes = [], i;
+  var objs = importCage(cage), boxes = [];
   if (!objs.length) { stop('The SubD import produced nothing, so nothing was added.'); return; }
   for (i = 0; i < objs.length; i++) {
     var b = objs.item(i).getBoundingBox();
