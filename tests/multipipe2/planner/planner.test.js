@@ -267,10 +267,16 @@ test('round joints: collar only at grown nodes unless allNodes', () => {
   assert.deepStrictEqual([rj.report.errors, rjAll.report.errors], [[], []]);
   assertClosedAndWound(rj, 'roundJoints grown only');
   assertClosedAndWound(rjAll, 'roundJoints allNodes');
-  // The grown node has degree 2: one collar ring per strut = 2 rings = 8 vertices with roundJoints alone.
-  assert.strictEqual(rj.vertices.length - base.vertices.length, 2 * 4);
-  // Both nodes are degree 2: 4 rings = 16 vertices with allNodes too.
-  assert.strictEqual(rjAll.vertices.length - base.vertices.length, 4 * 4);
+  // The grown node has degree 2: one collar ring per strut = 2 rings = 8 vertices with roundJoints alone, plus
+  // one apex vertex for its now-qualifying joint (ticket 11); the ungrown node still gets the flat hull, no
+  // apex vertex, since roundJoints alone does not qualify it.
+  assert.strictEqual(rj.vertices.length - base.vertices.length, 2 * 4 + 1);
+  assert.strictEqual(rj.report.roundedNodes, 1);
+  assert.strictEqual(rj.report.roundedNodeFallbacks, 0);
+  // Both nodes are degree 2: 4 rings = 16 vertices with allNodes too, plus an apex vertex for each qualifying node.
+  assert.strictEqual(rjAll.vertices.length - base.vertices.length, 4 * 4 + 2);
+  assert.strictEqual(rjAll.report.roundedNodes, 2);
+  assert.strictEqual(rjAll.report.roundedNodeFallbacks, 0);
 });
 
 test('round joints: allNodes adds a collar at every multi-strut node even when none grew', () => {
@@ -280,8 +286,13 @@ test('round joints: allNodes adds a collar at every multi-strut node even when n
   assert.strictEqual(rj.vertices.length, base.vertices.length);
   const all = run('cubeframe', { roundJoints: true, allNodes: true });
   assert.deepStrictEqual(all.report.errors, []);
-  // Every strut end at a multi-strut node gains a collar: sum of node degree = 2 x struts - free ends.
+  // Every strut end at a multi-strut node gains a collar: sum of node degree = 2 x struts - free ends. A plain
+  // 90-degree cube corner's own point turns out not to be exposed on the corner's true convex hull once the
+  // apex is fed into it alongside the ring corners (ticket 11's Comments), so every corner here falls back to
+  // the flat hull it always had; no extra apex vertices, all 8 nodes counted as fallbacks.
   assert.strictEqual(all.vertices.length - base.vertices.length, 4 * (2 * base.report.struts - base.report.freeEnds));
+  assert.strictEqual(all.report.roundedNodes, 0);
+  assert.strictEqual(all.report.roundedNodeFallbacks, base.report.nodes);
   assertClosedAndWound(all, 'cubeframe allNodes');
 });
 
@@ -321,6 +332,89 @@ test('round joints: collar offset scales with growth, not a flat w (ticket 10)',
   assert.strictEqual(jointRing.length, 2, 'one joint ring per strut, at reach');
   assert.strictEqual(collarRing.length, 2, 'one collar ring per strut, at reach + max(w, reach - d0)');
   assert.strictEqual(flatW.length, 0, 'collar must not sag at the old flat-w offset once the node has grown past it');
+});
+
+// The vertices among cage.vertices that land exactly on a curve endpoint (a node's own point): an apex-fan
+// vertex, never a ring vertex (rings sit an offset away from every node).
+function apexVertices(cage, spec) {
+  const pts = spec.flatMap((c) => [c.pts[0], c.pts[c.pts.length - 1]]);
+  return cage.vertices.filter((v) => pts.some((p) => Math.hypot(...sub(v, p)) < 1e-9));
+}
+
+test('round joints: qualifying nodes get an apex vertex at the node\'s own point where the hull reaches it (ticket 11)', () => {
+  // roofTruss: all six multi-strut nodes qualify (all grew); the apex is fed into each one's hull alongside its
+  // ring corners, and on three of the six (the hub and one corner geometry pins it down empirically here) the
+  // node's own point comes out exposed on that hull and gets used, the other three keep the flat hull.
+  const cage = run('roofTruss', { roundJoints: true, allNodes: true });
+  assert.deepStrictEqual(cage.report.errors, []);
+  assert.strictEqual(cage.report.roundedNodes, 3);
+  assert.strictEqual(cage.report.roundedNodeFallbacks, 3);
+  assert.strictEqual(apexVertices(cage, scenes.roofTruss).length, 3);
+  assertClosedAndWound(cage, 'roofTruss apex fan');
+
+  // A lightly-grown fixture already approved under tickets 09/10, run through the same gate: cubeframe with
+  // allNodes, none of whose 8 corners grew. A plain 90-degree cube corner's own point is not exposed on the
+  // hull once the apex joins it (see this file's cubeframe allNodes test), so every corner here falls back.
+  const cube = run('cubeframe', { roundJoints: true, allNodes: true });
+  assert.strictEqual(cube.report.roundedNodes, 0);
+  assert.strictEqual(cube.report.roundedNodeFallbacks, 8);
+  assert.strictEqual(apexVertices(cube, scenes.cubeframe).length, 0);
+
+  // The isolated corner fixture ticket 10 added (roofTruss's bottom-left corner in isolation), with roundJoints
+  // alone (it qualifies because it grew, no allNodes needed): here the node's own point is exposed.
+  const corner = [{ kind: 'line', start: [0, 0, 0], end: [40, 0, 0] }, { kind: 'line', start: [0, 0, 0], end: [20, 0, 25] }];
+  const cornerCage = plan(corner, { ...opts, roundJoints: true });
+  assert.strictEqual(cornerCage.report.roundedNodes, 1);
+  assert.strictEqual(cornerCage.report.roundedNodeFallbacks, 0);
+  assert.strictEqual(apexVertices(cornerCage, [{ pts: [[0, 0, 0], [40, 0, 0]] }, { pts: [[0, 0, 0], [20, 0, 25]] }]).length, 1);
+  assertClosedAndWound(cornerCage, 'isolated corner apex fan');
+});
+
+test('round joints: a node whose fan would self-intersect falls back to the flat hull (ticket 11)', () => {
+  // A deliberately extreme fixture: 16 struts fanned evenly around a point, nearly coplanar (a hair of z jitter
+  // to avoid the same-direction error), wide enough that neighbouring fan triangles from different struts cross.
+  const n = 16, curves = [];
+  for (let i = 0; i < n; i++) {
+    const a = 2 * Math.PI * i / n;
+    curves.push({ kind: 'line', start: [0, 0, 0], end: [500 * Math.cos(a), 500 * Math.sin(a), (i % 3 - 1) * 0.001] });
+  }
+  const cage = plan(curves, { ...opts, roundJoints: true, allNodes: true });
+  assert.strictEqual(cage.report.roundedNodes, 0);
+  assert.strictEqual(cage.report.roundedNodeFallbacks, 1);
+  assert.deepStrictEqual(cage.report.errors, []);
+  assertClosedAndWound(cage, 'apex fan fallback');
+});
+
+test('round joints: a node that hard-fails today\'s hull-plane test still fails the same way with roundJoints on (ticket 11)', () => {
+  // Five struts at odd 3D angles clustered enough that the flat hull's plane test fails outright today. Ticket
+  // 11 asked for the apex fan to rescue this by trying the fan before the hull-plane test; feeding the apex
+  // into the same hull computation does not change whether each ring's own facet is found on that hull (that
+  // depends only on the ring points themselves), so the rescue does not happen here in practice: the fallback
+  // still runs the ordinary flat-hull path and hits the same "too tight an angle" error, unchanged. See the
+  // ticket's Comments.
+  const curves = [
+    { kind: 'line', start: [0, 0, 0], end: [9.003163026126598, 2.4878210587684064, 115.32620052648342] },
+    { kind: 'line', start: [0, 0, 0], end: [6.855297803415627, -8.129211176607852, 54.583415852486254] },
+    { kind: 'line', start: [0, 0, 0], end: [-11.38378807571637, 35.775598057439275, 98.47168310402915] },
+    { kind: 'line', start: [0, 0, 0], end: [-66.94453495825853, -103.73135962282542, -78.32276722029748] },
+    { kind: 'line', start: [0, 0, 0], end: [13.736243783851254, -7.403452447528847, 104.31721061717117] },
+  ];
+  const base = plan(curves, opts);
+  assert.match(base.report.errors[0], /too tight an angle/);
+  const cage = plan(curves, { ...opts, roundJoints: true, allNodes: true });
+  assert.deepStrictEqual(cage.report.errors, base.report.errors);
+  assert.strictEqual(cage.report.roundedNodes, 0);
+  assert.strictEqual(cage.report.roundedNodeFallbacks, 1);
+});
+
+test('round joints: a non-qualifying node with roundJoints on keeps the flat hull, no apex vertex (ticket 11)', () => {
+  // The ungrown node in the mixed hairpin/bend fixture: roundJoints on, allNodes off, keeps the flat hull (no
+  // apex vertex added for it) while the grown node switches to the fan.
+  const hp = [{ kind: 'line', start: [0, 0, 0], end: [30, 0, 0] }, { kind: 'line', start: [0, 0, 0], end: [25.980762, 15, 0] }];
+  const bend = [{ kind: 'line', start: [1000, 0, 0], end: [1030, 0, 0] }, { kind: 'line', start: [1000, 0, 0], end: [1000, 30, 0] }];
+  const rj = plan([...hp, ...bend], { ...opts, roundJoints: true });
+  assert.strictEqual(rj.report.roundedNodes, 1);
+  assert.strictEqual(apexVertices(rj, [{ pts: [[1000, 0, 0], [1030, 0, 0]] }, { pts: [[1000, 0, 0], [1000, 30, 0]] }]).length, 0);
 });
 
 test('divisions must be a whole number of 0 or more', () => {

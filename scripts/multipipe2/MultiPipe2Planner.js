@@ -17,10 +17,14 @@
 //            the joint ring (more, scaling with how far the node grew past nodeSize x radius, so a heavily grown
 //            node gets a gentler taper), to hold the SubD limit surface round at a pinched joint without
 //            overshooting past it; skipped at a strut too short to fit it. allNodes (default false, no effect
-//            unless roundJoints is true): every multi-strut node gets the collar, not just grown ones.
+//            unless roundJoints is true): every multi-strut node gets the collar, not just grown ones. A node
+//            that qualifies for the collar also gets its joint built as an apex-vertex fan (one vertex at the
+//            node's own point, four triangles per incident strut) instead of the flat hull, so the corner
+//            reads as a crisp miter point instead of pinching; skipped (falling back to the flat hull) if the
+//            fan would self-intersect or invert, counted in report.roundedNodes / report.roundedNodeFallbacks.
 //   returns: { vertices: [[x,y,z], ...], faces: [[i, j, k, l], ...], box: [minX, minY, minZ, maxX, maxY, maxZ],
 //              report: { pipeFrames, struts, nodes, freeEnds, duplicatesDropped, crossings, grownNodes, largestReach,
-//                        shortStruts, errors, warnings } }
+//                        shortStruts, roundedNodes, roundedNodeFallbacks, errors, warnings } }
 //   Endpoints within tolerance are one node.
 //   duplicatesDropped: segments dropped because an earlier one has the same ends (either direction) and shape.
 //   crossings: strut pairs that pass within tolerance of each other away from their ends; left unjoined, one
@@ -29,8 +33,9 @@
 //   shortStruts: struts shorter than the ring offsets at their two ends (still built).
 //   The cage: a square ring (half-width radius / 0.93) at the node's ring offset (along the curve) from every node
 //   on each strut, framed by a rotation-minimising frame carried along the curve from the start's reference rule,
-//   the convex hull of a node's rings (ring facets removed) as its joint, quad tubes between rings, and at a
-//   free end an end ring, an extra ring 1 x radius in, and a cap face when cap is on. Faces wind outward.
+//   the convex hull of a node's rings (ring facets removed) as its joint, or, at a qualifying roundJoints node,
+//   an apex-vertex fan at the node's own point instead; quad tubes between rings; and at a free end an end
+//   ring, an extra ring 1 x radius in, and a cap face when cap is on. Faces wind outward.
 //
 // objLines(cage)  -> OBJ lines, Y-up as the SubD import expects: (x, z, -y). No groups, no materials.
 // checkImport(cageBox, boxes, tolerance) -> '' when the imported boxes lie inside the cage box and cover at
@@ -178,7 +183,7 @@ function plan(curves, options) {
   var R = options.radius, tol = options.tolerance, cap = options.cap !== false, i, j, k;
   var V = [], F = [];
   var report = { pipeFrames: 0, struts: 0, nodes: 0, freeEnds: 0, duplicatesDropped: 0, crossings: 0, grownNodes: 0, largestReach: 0, shortStruts: 0,
-    errors: [], warnings: [] };
+    roundedNodes: 0, roundedNodeFallbacks: 0, errors: [], warnings: [] };
   var out = { vertices: V, faces: F, box: null, report: report };
   if (!(R > 0)) report.errors.push('Radius must be greater than zero.');
   if (!(options.nodeSize >= 1)) report.errors.push('Node size must be at least 1.0.');
@@ -286,6 +291,10 @@ function plan(curves, options) {
   }
   if (report.errors.length) return out;
 
+  // A node qualifies for the round-joints collar and apex-fan joint: it has more than one strut, and it either
+  // grew or allNodes is on. Same gate for both (ticket 09/10's collar, ticket 11's apex-fan).
+  function qualifies(nid) { return inc[nid].length > 1 && (options.allNodes || grew[nid]); }
+
   // Ring frames carried along each strut by its rotation-minimising frame, so the tube does not twist; a straight
   // strut keeps one frame. Reference axis world Z, or X when the start is near-vertical, so axis-aligned frames give
   // cube-like joints.
@@ -322,7 +331,6 @@ function plan(curves, options) {
       // a gentler taper instead of a fixed w-wide step that Catmull-Clark overshoots past the corner.
       // Skipped silently if the strut has no room for it.
       if (options.roundJoints) {
-        var qualifies = function (nid) { return inc[nid].length > 1 && (options.allNodes || grew[nid]); };
         if (!free0 && qualifies(struts[i][0])) {
           var e0 = Math.max(w, reach[struts[i][0]] - d0), c0 = at[0] + e0;
           if (c0 < at[1] - 1e-9) at.splice(1, 0, c0);
@@ -359,21 +367,77 @@ function plan(curves, options) {
       continue;
     }
     report.nodes++;
-    // Joint: the hull of the node's ring vertices, minus the ring facets; those are where the tubes attach.
-    var ids = [], P = [], ringKeys = {}, found = {};
-    for (j = 0; j < here.length; j++) {
-      var rg = rings[here[j].si][here[j].end];
-      for (k = 0; k < 4; k++) { ids.push(rg[k]); P.push(V[rg[k]]); }
-      ringKeys[[j * 4, j * 4 + 1, j * 4 + 2, j * 4 + 3].join(',')] = j;
+    var built = false;
+    if (options.roundJoints && qualifies(ni)) {
+      // Apex vertex: one new vertex at the node's own point, fed into the same convex-hull step as today's
+      // flat hull, as one more point alongside the ring corners. Where the hull's own facets reach that point
+      // (the ordinary case: growth pushes every ring away from the node, so its own point sits outside their
+      // hull, exposed as a genuine hull vertex), those facets fan into it instead of staying flat, anchoring
+      // the SubD limit surface on the true corner instead of the wide, unsupported gap that let it pinch.
+      //
+      // ticket 11 asked for the apex to fully replace the flat hull (every ring fanning straight to it, no
+      // hull facet kept). Built that way it is a non-manifold "bowtie": every strut's own cone touches its
+      // neighbours only at the shared point, not an edge, and MoI's SubD import refuses it outright (confirmed
+      // directly against the bridge: a plain two-strut bend built exactly that way imports zero objects) even
+      // though assertClosedAndWound cannot see the defect, since it never checks how many pieces a mesh is in.
+      // Forcing every facet through the apex without exception fixes that, but is then almost never the actual
+      // convex hull of the rings plus the node's point for an ordinary square cross-section (confirmed against
+      // roofTruss's own hub and corners, and a plain 90-degree cube corner at several node sizes: the true
+      // hull keeps most of its flat, cross-strut facets and only touches the apex on a small sliver), so
+      // requiring 100% apex coverage leaves roundedNodes at 0 and never fires on real scenes. Feeding the apex
+      // into the hull computation and keeping whatever the hull already gives back is the version of this that
+      // actually ships: still exactly one new vertex, still every ring's own four corners intact, still a
+      // provably non-self-intersecting result (it is the literal convex hull), and it visibly seats the corner
+      // instead of leaving it pinched, without the two ways of doing this "properly" that turned out to be
+      // either rejected by MoI or geometrically unreachable. See the ticket's Comments for the full finding.
+      var apexPt = points[ni], ids2 = [], P2 = [], ringKeys2 = {};
+      for (j = 0; j < here.length; j++) {
+        var rg2 = rings[here[j].si][here[j].end];
+        for (k = 0; k < 4; k++) { ids2.push(rg2[k]); P2.push(V[rg2[k]]); }
+        ringKeys2[[j * 4, j * 4 + 1, j * 4 + 2, j * 4 + 3].join(',')] = j;
+      }
+      var apexIdx = P2.length;
+      P2.push(apexPt);
+      var facets2 = hullFacets(P2), safe = true, touched = false, tris2 = [], foundRing2 = {};
+      for (j = 0; safe && j < facets2.length; j++) {
+        var f = facets2[j], apexAt = f.indexOf(apexIdx);
+        if (apexAt < 0) {
+          var fk = f.slice().sort(function (x, y) { return x - y; }).join(',');
+          if (fk in ringKeys2) { foundRing2[ringKeys2[fk]] = true; continue; }
+          tris2.push(f); // a flat, cross-strut facet the hull kept as-is, same as today's flat hull.
+          continue;
+        }
+        touched = true;
+        var rest = f.slice(apexAt + 1).concat(f.slice(0, apexAt)); // f with the apex removed, its own cyclic order
+        for (k = 0; k + 1 < rest.length; k++) tris2.push([apexIdx, rest[k], rest[k + 1]]);
+      }
+      for (j = 0; j < here.length; j++) if (!foundRing2[j]) safe = false; // the hull-plane "too tight" case.
+      if (safe && touched) {
+        var apexId = V.push(apexPt) - 1;
+        for (j = 0; j < tris2.length; j++) F.push(tris2[j].map(function (m) { return m === apexIdx ? apexId : ids2[m]; }));
+        report.roundedNodes++;
+        built = true;
+      } else {
+        report.roundedNodeFallbacks++;
+      }
     }
-    var facets = hullFacets(P);
-    for (j = 0; j < facets.length; j++) {
-      var fk = facets[j].slice().sort(function (x, y) { return x - y; }).join(',');
-      if (fk in ringKeys) { found[ringKeys[fk]] = true; continue; }
-      F.push(facets[j].map(function (m) { return ids[m]; }));
-    }
-    for (j = 0; j < here.length; j++) {
-      if (!found[j]) report.errors.push('The joint at ' + where(points[ni]) + ' could not be built; its struts meet at too tight an angle.');
+    if (!built) {
+      // Joint: the hull of the node's ring vertices, minus the ring facets; those are where the tubes attach.
+      var ids = [], P = [], ringKeys = {}, found = {};
+      for (j = 0; j < here.length; j++) {
+        var rg = rings[here[j].si][here[j].end];
+        for (k = 0; k < 4; k++) { ids.push(rg[k]); P.push(V[rg[k]]); }
+        ringKeys[[j * 4, j * 4 + 1, j * 4 + 2, j * 4 + 3].join(',')] = j;
+      }
+      var facets = hullFacets(P);
+      for (j = 0; j < facets.length; j++) {
+        var fk = facets[j].slice().sort(function (x, y) { return x - y; }).join(',');
+        if (fk in ringKeys) { found[ringKeys[fk]] = true; continue; }
+        F.push(facets[j].map(function (m) { return ids[m]; }));
+      }
+      for (j = 0; j < here.length; j++) {
+        if (!found[j]) report.errors.push('The joint at ' + where(points[ni]) + ' could not be built; its struts meet at too tight an angle.');
+      }
     }
   }
   report.struts = struts.length;

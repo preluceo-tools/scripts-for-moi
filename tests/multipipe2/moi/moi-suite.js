@@ -13,6 +13,8 @@
 // open boundary (its naked edges join into one closed loop), and a frame without free ends must still be a closed
 // solid. arcframe, helix and ring are smooth curves (an interpolated half circle in a frame, a two-turn helix, a closed
 // circle, which must come in as one closed tube with no node). The 'N=3' runs repeat some with Divisions 3 and must still come in as closed solids.
+// The 'round joints, all nodes' runs repeat roofTruss and twobends with Round joints and All nodes on, so the
+// apex-vertex fan joint (ticket 11) is checked live too, not just by the planner tests.
 // Last comes 'lattice', a generated 4 x 4 x 4 grid (300 struts, 125 nodes, Radius 0.5): one closed solid, with its
 // planner (describe plus plan), write and import times recorded separately (write is objLines plus writing the OBJ;
 // import is importCage less that write).
@@ -42,6 +44,9 @@ function runMoiSuite(root) {
   for (n = 0; n < names.length; n++) runs.push({ name: names[n], cap: true });
   runs.push({ name: 'line', cap: false }, { name: 'bend90', cap: false }, { name: 'polyframe', cap: false }, { name: 'cubeframe', cap: false });
   runs.push({ name: 'cubeframe', cap: true, divisions: 3 }, { name: 'polyframe', cap: true, divisions: 3 }, { name: 'arcframe', cap: true, divisions: 3 });
+  // Round joints, all nodes: the apex-vertex fan joint (ticket 11) must still import as a closed solid inside the
+  // cage's own box, on the scene the bug was reported against (roofTruss) and a clean one (twobends).
+  runs.push({ name: 'roofTruss', cap: true, roundJoints: true, allNodes: true }, { name: 'twobends', cap: true, roundJoints: true, allNodes: true });
   var VM = moi.vectorMath;
   function P(a) { return VM.createPoint(a[0], a[1], a[2]); }
   function curve(c) {
@@ -69,10 +74,12 @@ function runMoiSuite(root) {
   }
   var before = gd.getObjects().length, out = { passed: 0, failed: [], results: [] };
   for (n = 0; n < runs.length; n++) {
-    var name = runs[n].name, label = name + (runs[n].cap ? '' : ' (cap off)') + (runs[n].divisions ? ' (N=' + runs[n].divisions + ')' : ''), spec = scenes[name], curves = gd.createObjectList(), i, reason = '';
+    var name = runs[n].name, label = name + (runs[n].cap ? '' : ' (cap off)') + (runs[n].divisions ? ' (N=' + runs[n].divisions + ')' : '') +
+      (runs[n].roundJoints ? ' (round joints' + (runs[n].allNodes ? ', all nodes' : '') + ')' : ''), spec = scenes[name], curves = gd.createObjectList(), i, reason = '';
     for (i = 0; i < spec.length; i++) curves.addObject(curve(spec[i]));
     var input = describe(curves);
-    var cage = plan(input, { radius: R, nodeSize: 1.6, divisions: runs[n].divisions, cap: runs[n].cap, tolerance: tol }), t0 = new Date().getTime();
+    var cage = plan(input, { radius: R, nodeSize: 1.6, divisions: runs[n].divisions, cap: runs[n].cap, tolerance: tol,
+      roundJoints: runs[n].roundJoints, allNodes: runs[n].allNodes }), t0 = new Date().getTime();
     var objs = cage.report.errors.length ? gd.createObjectList() : importCage(cage), boxes = [], nakedLoops = 0;
     out.results.push({ scene: label, ms: new Date().getTime() - t0, objects: objs.length });
     for (i = 0; i < objs.length; i++) {

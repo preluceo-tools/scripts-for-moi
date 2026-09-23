@@ -120,13 +120,15 @@ Your export and mesh settings are not touched.</p>
   <tr>
     <td>Round joints</td><td>Off</td>
     <td>On: every node whose joint grew for a tight angle (see <a href="#tight">Tight angles</a>) gets one
-      extra plain ring on each of its struts, just inboard of the joint, to hold the joint round instead of
-      letting it pinch. Off: joints are left as they are.</td>
+      extra plain ring on each of its struts, just inboard of the joint, and its joint is offered the node's
+      own point as an extra corner to build around, so a grown joint often comes to a controlled miter point
+      there instead of pinching; where the geometry does not allow it the joint is left as it was. Off: joints
+      are left as they are.</td>
   </tr>
   <tr>
     <td>All nodes</td><td>Off</td>
     <td>Greyed out unless <em>Round joints</em> is also on. On: every node with more than one strut gets the
-      extra ring, not only the ones that grew.</td>
+      extra ring, and is offered the same miter-point treatment, not only the ones that grew.</td>
   </tr>
 </table>
 
@@ -182,8 +184,10 @@ is built.</p>
 <p><strong>Pinched joints.</strong> Even a joint that has grown enough not to fold through itself can still
 pinch a little where MoI's SubD import rounds it off, if the angle is acute enough and nothing nearby holds
 it round. Turn on <em>Round joints</em> to add one extra ring just inboard of the joint at every grown node
-(or, with <em>All nodes</em> also on, at every node), which holds the SubD limit surface round there. Both
-options are off by default and remembered between runs.</p>
+(or, with <em>All nodes</em> also on, at every node), which holds the SubD limit surface round there, and to
+offer that node's own point into its joint as an extra corner &mdash; where the geometry allows it, the joint
+comes to a crisp, symmetric miter point there rather than a smooth fillet or a pinch; where it does not, the
+joint is left as it was. Both options are off by default and remembered between runs.</p>
 
 <h2 id="capoff">Cap off</h2>
 
