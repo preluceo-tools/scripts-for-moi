@@ -37,12 +37,16 @@ function show(id, text) {
 
 function stop(message) { show('SummaryPrompt', message); waitForDone(); }
 
-// Planner input. Anything but a line reaches the planner as an unsupported kind, and it says so.
+// Planner input: a line, or a polyline when every segment is straight. Anything else reaches the planner as an
+// unsupported kind, and it says so.
 function describe(curves) {
   var input = [];
+  function A(p) { return [p.x, p.y, p.z]; }
   for (var i = 0; i < curves.length; i++) {
-    var c = curves.item(i), a = c.evaluatePoint(c.domainMin), b = c.evaluatePoint(c.domainMax);
-    input.push(c.isLine ? { kind: 'line', start: [a.x, a.y, a.z], end: [b.x, b.y, b.z] } : { kind: 'curve' });
+    var c = curves.item(i), segs = c.getSubObjects(), pts = [A(c.evaluatePoint(c.domainMin))], j;
+    if (c.isLine) { input.push({ kind: 'line', start: pts[0], end: A(c.evaluatePoint(c.domainMax)) }); continue; }
+    for (j = 0; j < segs.length && segs.item(j).isLine; j++) pts.push(A(segs.item(j).evaluatePoint(segs.item(j).domainMax)));
+    input.push(segs.length && j === segs.length ? { kind: 'polyline', points: pts } : { kind: 'curve' });
   }
   return input;
 }
@@ -94,6 +98,9 @@ function MultiPipe2() {
 
   show('SummaryPrompt', plural(r.pipeFrames, 'pipe frame') + ', ' + plural(r.struts, 'strut') + ', ' +
     plural(r.nodes, 'node') + ', ' + plural(r.freeEnds, 'free end') +
+    (r.duplicatesDropped ? '<br>' + plural(r.duplicatesDropped, 'duplicate segment') + ' dropped.' : '') +
+    (r.crossings ? '<br>' + plural(r.crossings, 'crossing') + ' left unjoined; split the curves there to make a node.<br>' +
+      r.warnings.join('<br>') : '') +
     (r.grownNodes ? '<br>' + plural(r.grownNodes, 'node') + ' grew for tight angles, reaching up to ' +
       r.largestReach.toFixed(2) + ' x Radius.' : '') +
     (r.shortStruts ? '<br>' + plural(r.shortStruts, 'strut') + ' shorter than ' + (r.shortStruts == 1 ? 'its' : 'their') +

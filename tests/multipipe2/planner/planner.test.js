@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { plan, objLines, checkImport } = require('../../../scripts/multipipe2/MultiPipe2Planner.js');
 const scenes = require('../scenes/scenes.json');
+const v1Scenes = require('../../multipipe/scenes/scenes.json');
 
 const R = 2;
 const W = R / 0.93;
@@ -87,7 +88,8 @@ test('errors: bad options, no curves, zero length, not a line', () => {
   assert.match(run('line', { nodeSize: 0.9 }).report.errors[0], /Node size/);
   assert.match(plan([], opts).report.errors[0], /at least one curve/);
   assert.match(plan([{ kind: 'line', start: [1, 1, 1], end: [1, 1, 1] }], opts).report.errors[0], /zero length/);
-  assert.match(plan([{ kind: 'polyline', points: [] }], opts).report.errors[0], /not a straight line/);
+  assert.match(plan([{ kind: 'curve' }], opts).report.errors[0], /not a straight line or polyline/);
+  assert.match(plan([{ kind: 'polyline', points: [[1, 1, 1], [1, 1, 1]] }], opts).report.errors[0], /zero length/);
 });
 
 test('OBJ is Y-up (x, z, -y), vertices then 1-based faces, no groups or materials', () => {
@@ -132,4 +134,60 @@ test('two struts in the same direction at a node are an error, not a cage', () =
   const p = plan([{ kind: 'line', start: [0, 0, 0], end: [30, 0, 0] }, { kind: 'line', start: [0, 0, 0], end: [20, 0, 0] }], opts);
   assert.match(p.report.errors[0], /same direction/);
   assert.strictEqual(p.faces.length, 0);
+});
+
+// v1's shared scenes, at v1's scale (radius 0.5), as MultiPipe2 input.
+const v1Opts = { radius: 0.5, nodeSize: 1.6, tolerance: 0.001 };
+const v1Input = (spec) => spec.map((c) => c.type === 'polyline' ? { kind: 'polyline', points: c.pts }
+  : { kind: 'line', start: c.pts[0], end: c.pts[c.pts.length - 1] });
+const v1Run = (name, o) => plan(v1Input(v1Scenes[name]), { ...v1Opts, ...o });
+const line = (start, end) => ({ kind: 'line', start, end });
+
+test('a polyline gives one strut per segment and a node at every corner, nearly straight ones too', () => {
+  const cage = v1Run('polyline'), r = cage.report;
+  assert.deepStrictEqual(r.errors, []);
+  assert.deepStrictEqual([r.pipeFrames, r.struts, r.nodes, r.freeEnds, r.crossings], [1, 5, 4, 2, 0]);
+  assertClosedAndWound(cage, 'polyline');
+  // A closed polyline: its last point meets its first, so every corner is a node. A zero-length segment is skipped.
+  const sq = plan([{ kind: 'polyline', points: [[0, 0, 0], [40, 0, 0], [40, 40, 0], [40, 40, 0], [0, 40, 0], [0, 0, 0]] }], opts);
+  assert.deepStrictEqual([sq.report.struts, sq.report.nodes, sq.report.freeEnds, sq.report.pipeFrames], [4, 4, 0, 1]);
+  assertClosedAndWound(sq, 'closed polyline');
+});
+
+test('a frame drawn as one polyline plus loose lines is one pipe frame', () => {
+  const cage = plan(v1Input(scenes.polyframe), opts), r = cage.report;
+  assert.deepStrictEqual(r.errors, []);
+  assert.deepStrictEqual([r.pipeFrames, r.struts, r.nodes, r.freeEnds], [1, 8, 4, 4]);
+  assertClosedAndWound(cage, 'table');
+});
+
+test('duplicates: exact and reversed lines dropped and counted, as in v1', () => {
+  const r = v1Run('duplicates').report;
+  assert.deepStrictEqual(r.errors, []);
+  assert.deepStrictEqual([r.duplicatesDropped, r.struts, r.nodes, r.freeEnds], [2, 2, 1, 2]);
+  // A doubled polyline, whole or split into lines, drops every segment.
+  const poly = { kind: 'polyline', points: [[0, 0, 0], [10, 0, 0], [10, 10, 0]] };
+  assert.strictEqual(plan([poly, poly], v1Opts).report.duplicatesDropped, 2);
+  assert.strictEqual(plan([poly, line([10, 10, 0], [10, 0, 0]), line([10, 0, 0], [0, 0, 0])], v1Opts).report.duplicatesDropped, 2);
+  // A near-duplicate outside tolerance is kept.
+  assert.strictEqual(plan([line([0, 0, 0], [10, 0, 0]), line([0, 0, 0], [10, 0.002, 0])], v1Opts).report.duplicatesDropped, 0);
+});
+
+test('crossing scene: one crossing warned about and left unjoined, as in v1', () => {
+  const r = v1Run('crossing').report;
+  assert.deepStrictEqual(r.errors, []);
+  assert.strictEqual(r.crossings, 1);
+  assert.deepStrictEqual(r.warnings, ['Curves cross without sharing an end near (0.000, 0.000, 0.000); left unjoined.']);
+  // Unjoined: the vertical line stays its own pipe frame; the corner at (10, 0, 0) is the only node.
+  assert.deepStrictEqual([r.struts, r.nodes, r.freeEnds, r.pipeFrames], [3, 1, 4, 2]);
+});
+
+test('struts that touch only at a shared node or a tip are not crossings, at any scale', () => {
+  for (const name of ['y', 't', 'node6tight', 'acute', 'polyline', 'freeends', 'straight']) {
+    assert.strictEqual(v1Run(name).report.crossings, 0, name);
+  }
+  // A tip landing on another strut's side is a touch.
+  assert.strictEqual(plan([line([-10, 0, 0], [10, 0, 0]), line([0, 0, 0], [0, 10, 0])], v1Opts).report.crossings, 0);
+  const tiny = { ...v1Opts, radius: 0.0005, tolerance: 1e-6 };
+  assert.strictEqual(plan([line([0, 0, 0], [0.01, 0, 0]), line([0.005, -0.005, 0], [0.005, 0.005, 0])], tiny).report.crossings, 1);
 });

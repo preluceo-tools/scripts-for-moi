@@ -1,5 +1,5 @@
 {
-  "_about": "MultiPipe2 sample scenes, same format as MultiPipe's scene file. Each scene is a list of curves; line gives its two ends.",
+  "_about": "MultiPipe2 sample scenes, same format as MultiPipe's scene file. Each scene is a list of curves; line gives its two ends, polyline its vertices.",
   "line": [
     { "type": "line", "pts": [[0, 0, 0], [30, 0, 0]] }
   ],
@@ -73,5 +73,12 @@
     { "type": "line", "pts": [[40, 0, 0], [20, 0, 25]] },
     { "type": "line", "pts": [[40, 0, 0], [40, 0, 40]] },
     { "type": "line", "pts": [[40, 0, 0], [60, 0, 25]] }
+  ],
+  "polyframe": [
+    { "type": "polyline", "pts": [[0, 0, 40], [40, 0, 40], [40, 40, 40], [0, 40, 40], [0, 0, 40]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 0, 40]] },
+    { "type": "line", "pts": [[40, 0, 0], [40, 0, 40]] },
+    { "type": "line", "pts": [[40, 40, 0], [40, 40, 40]] },
+    { "type": "line", "pts": [[0, 40, 0], [0, 40, 40]] }
   ]
 }

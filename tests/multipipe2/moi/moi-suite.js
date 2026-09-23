@@ -1,6 +1,7 @@
 // MultiPipe2 MoI suite, run inside MoI through the MoI MCP bridge (moi_eval). ES5 only.
-// It loads the planner and the command's functions fresh from <repo>, imports each scene's cage through the
-// command's own importCage(), checks the solids, then removes everything it made. Call it with:
+// It loads the planner and the command's functions fresh from <repo>, makes each scene's curves as MoI curves
+// (calculate() only, never added to the document), describes them with the command's own describe(), imports the
+// cage through the command's own importCage(), checks the solids, then removes everything it made. Call it with:
 //
 //   var ROOT = '<repo folder>/';   // forward slashes, trailing slash
 //   var s = moi.filesystem.openFileStream(ROOT + 'tests/multipipe2/moi/moi-suite.js', 'r'), t = '';
@@ -24,11 +25,19 @@ function runMoiSuite(root) {
 
   var gd = moi.geometryDatabase, R = 2, tol = gd.tolerance;
   var tmp = moi.filesystem.getTempDir() + 'MultiPipe2-cage.obj';
-  var names = ['line', 'bend90', 'cubeframe', 'twobends', 'hairpin30', 'k5skew', 'd8', 'roofTruss'];
+  var names = ['line', 'bend90', 'cubeframe', 'twobends', 'hairpin30', 'k5skew', 'd8', 'roofTruss', 'polyframe'];
+  var VM = moi.vectorMath;
+  function curve(c) {
+    var f = moi.command.createFactory('polyline');
+    for (var j = 0; j < c.pts.length; j++) { f.createInput('point'); f.setInput(f.numInputs - 1, VM.createPoint(c.pts[j][0], c.pts[j][1], c.pts[j][2])); }
+    var r = f.calculate(); f.cancel();
+    return r.item(0);
+  }
   var before = gd.getObjects().length, out = { passed: 0, failed: [], results: [] };
   for (var n = 0; n < names.length; n++) {
-    var spec = scenes[names[n]], input = [], i, reason = '';
-    for (i = 0; i < spec.length; i++) input.push({ kind: 'line', start: spec[i].pts[0], end: spec[i].pts[1] });
+    var spec = scenes[names[n]], curves = gd.createObjectList(), i, reason = '';
+    for (i = 0; i < spec.length; i++) curves.addObject(curve(spec[i]));
+    var input = describe(curves);
     var cage = plan(input, { radius: R, nodeSize: 1.6, tolerance: tol }), t0 = new Date().getTime();
     var objs = cage.report.errors.length ? gd.createObjectList() : importCage(cage), boxes = [];
     out.results.push({ scene: names[n], ms: new Date().getTime() - t0, objects: objs.length });
@@ -40,6 +49,7 @@ function runMoiSuite(root) {
       if (objs.item(i).name) reason = 'name not cleared';
     }
     if (cage.report.errors.length) reason = cage.report.errors.join('; ');
+    else if (names[n] === 'polyframe' && (input[0].kind !== 'polyline' || objs.length !== 1)) reason = 'polyline not one pipe frame';
     else if (objs.length !== cage.report.pipeFrames) reason = 'expected ' + cage.report.pipeFrames + ' pipe frames, got ' + objs.length;
     else if (moi.filesystem.fileExists(tmp)) reason = 'temp file left behind';
     else if (!reason) reason = checkImport(cage.box, boxes, tol);

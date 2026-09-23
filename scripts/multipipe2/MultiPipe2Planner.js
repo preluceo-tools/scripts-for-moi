@@ -2,10 +2,17 @@
 // so it runs inside MoI (via #include) and under Node (via require).
 //
 // plan(curves, options)
-//   curves:  [ { kind: 'line', start: [x,y,z], end: [x,y,z] } ]  any other kind is an error
+//   curves:  [ { kind: 'line', start: [x,y,z], end: [x,y,z] } | { kind: 'polyline', points: [[x,y,z], ...] } ]
+//            any other kind is an error. A polyline gives one strut per segment, a node at every corner;
+//            zero-length segments inside it are skipped.
 //   options: { radius, nodeSize, cap, tolerance }  nodeSize >= 1.0; cap defaults to true
 //   returns: { vertices: [[x,y,z], ...], faces: [[i, j, k, l], ...], box: [minX, minY, minZ, maxX, maxY, maxZ],
-//              report: { pipeFrames, struts, nodes, freeEnds, grownNodes, largestReach, shortStruts, errors, warnings } }
+//              report: { pipeFrames, struts, nodes, freeEnds, duplicatesDropped, crossings, grownNodes, largestReach,
+//                        shortStruts, errors, warnings } }
+//   Endpoints within tolerance are one node.
+//   duplicatesDropped: segments dropped because an earlier one has the same ends (either direction) and shape.
+//   crossings: strut pairs that pass within tolerance of each other away from their ends; left unjoined, one
+//              warning each.
 //   largestReach: the largest ring offset at a grown node, as a factor of radius (0 when none grew).
 //   shortStruts: struts shorter than the ring offsets at their two ends (still built).
 //   The cage: a square ring (half-width radius / 0.93) at the node's ring offset from every node on each strut,
@@ -25,6 +32,18 @@ function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
 function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
 function len(a) { return Math.sqrt(dot(a, a)); }
 function unit(a) { return mul(a, 1 / len(a)); }
+function clamp(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+
+// Closest points of segments p0-p1 and q0-q1 (Ericson, Real-Time Collision Detection 5.1.9).
+function closest(p0, p1, q0, q1) {
+  var d1 = sub(p1, p0), d2 = sub(q1, q0), r = sub(p0, q0), a = dot(d1, d1), e = dot(d2, d2), f = dot(d2, r);
+  var cc = dot(d1, r), b = dot(d1, d2), den = a * e - b * b, sp = den > 1e-12 * a * e ? clamp((b * f - cc * e) / den) : 0;
+  var tq = e > 0 ? (b * sp + f) / e : 0;
+  if (e <= 0) { tq = 0; sp = a > 0 ? clamp(-cc / a) : 0; }
+  else if (a > 0 && tq < 0) { tq = 0; sp = clamp(-cc / a); }
+  else if (a > 0 && tq > 1) { tq = 1; sp = clamp((b - cc) / a); }
+  return [add(p0, mul(d1, sp)), add(q0, mul(d2, clamp(tq)))];
+}
 
 // Convex hull facets of a small point set, each ordered around its normal.
 // ponytail: brute force, O(n^4) in a node's ring vertices (4 per strut); fine to ~10 struts a node.
@@ -94,7 +113,7 @@ function orient(V, F) {
 function plan(curves, options) {
   var R = options.radius, tol = options.tolerance, cap = options.cap !== false, i, j, k;
   var V = [], F = [];
-  var report = { pipeFrames: 0, struts: 0, nodes: 0, freeEnds: 0, grownNodes: 0, largestReach: 0, shortStruts: 0,
+  var report = { pipeFrames: 0, struts: 0, nodes: 0, freeEnds: 0, duplicatesDropped: 0, crossings: 0, grownNodes: 0, largestReach: 0, shortStruts: 0,
     errors: [], warnings: [] };
   var out = { vertices: V, faces: F, box: null, report: report };
   if (!(R > 0)) report.errors.push('Radius must be greater than zero.');
@@ -110,20 +129,61 @@ function plan(curves, options) {
     points.push(p); inc.push([]);
     return points.length - 1;
   }
+  // Duplicates: same ends in either direction, and the same quarter, middle and three-quarter points along the
+  // samples (a line's samples are its ends), so a curve bowing the other way is kept.
+  // ponytail: O(n^2) duplicate scan, same ceiling as the clustering.
+  var kept = [];
+  function at(ss, fraction) {
+    var x = fraction * (ss.length - 1), lo = Math.floor(x), u = x - lo, p = ss[lo], q = ss[Math.min(lo + 1, ss.length - 1)];
+    return add(p, mul(sub(q, p), u));
+  }
+  function near(p, q) { return len(sub(p, q)) <= tol; }
+  function isDuplicate(a, b, samples) {
+    var m = [at(samples, 0.25), at(samples, 0.5), at(samples, 0.75)];
+    for (var d = 0; d < kept.length; d++) {
+      var q = kept[d], forward = near(q.a, a) && near(q.b, b), back = near(q.a, b) && near(q.b, a);
+      if (!near(q.m[1], m[1])) continue;
+      if (forward && near(q.m[0], m[0]) && near(q.m[2], m[2]) || back && near(q.m[0], m[2]) && near(q.m[2], m[0])) {
+        report.duplicatesDropped++;
+        return true;
+      }
+    }
+    kept.push({ a: a, b: b, m: m });
+    return false;
+  }
   for (i = 0; i < curves.length; i++) {
-    var c = curves[i];
-    if (c.kind !== 'line') { report.errors.push('Curve ' + (i + 1) + ' is not a straight line; MultiPipe2 takes straight lines.'); continue; }
-    if (len(sub(c.end, c.start)) <= tol) { report.errors.push('Curve ' + (i + 1) + ' has zero length.'); continue; }
-    var s = [node(c.start), node(c.end)];
-    inc[s[0]].push({ si: struts.length, end: 0 });
-    inc[s[1]].push({ si: struts.length, end: 1 });
-    struts.push(s);
+    var c = curves[i], pts = c.kind === 'line' ? [c.start, c.end] : c.kind === 'polyline' ? c.points || [] : null, nonZero = false;
+    if (!pts) { report.errors.push('Curve ' + (i + 1) + ' is not a straight line or polyline; MultiPipe2 takes those.'); continue; }
+    for (j = 0; j + 1 < pts.length; j++) {
+      if (near(pts[j], pts[j + 1])) continue;
+      nonZero = true;
+      if (isDuplicate(pts[j], pts[j + 1], [pts[j], pts[j + 1]])) continue;
+      var s = [node(pts[j]), node(pts[j + 1])];
+      inc[s[0]].push({ si: struts.length, end: 0 });
+      inc[s[1]].push({ si: struts.length, end: 1 });
+      struts.push(s);
+    }
+    if (!nonZero) report.errors.push('Curve ' + (i + 1) + ' has zero length.');
   }
   if (report.errors.length) return out;
 
+  // Crossings: two struts closer than tolerance away from all four of their ends. Never joined, only warned about;
+  // a strut whose tip lands on another is a touch, not a crossing.
+  // ponytail: O(n^2) strut pairs, a spatial grid when large frames need it.
+  function where(p) { return '(' + p.map(function (x) { return x.toFixed(3); }).join(', ') + ')'; }
+  for (i = 0; i < struts.length; i++) for (j = i + 1; j < struts.length; j++) {
+    var ends = [points[struts[i][0]], points[struts[i][1]], points[struts[j][0]], points[struts[j][1]]];
+    var cp = closest(ends[0], ends[1], ends[2], ends[3]);
+    if (!near(cp[0], cp[1])) continue;
+    var pt = mul(add(cp[0], cp[1]), 0.5), touch = false;
+    for (k = 0; k < 4; k++) if (len(sub(ends[k], pt)) <= 2 * tol) touch = true;
+    if (touch) continue;
+    report.crossings++;
+    report.warnings.push('Curves cross without sharing an end near ' + where(pt) + '; left unjoined.');
+  }
+
   // One ring offset per node, shared by all its struts: nodeSize x R, grown so no neighbouring ring's corner
   // reaches past a ring's plane. It must be one value per node; the bound assumes both rings sit at the same offset.
-  function where(p) { return '(' + p.map(function (x) { return x.toFixed(3); }).join(', ') + ')'; }
   function away(e) { var s = struts[e.si]; return unit(sub(points[s[1 - e.end]], points[s[e.end]])); }
   var reach = [];
   for (var ni = 0; ni < points.length; ni++) {
