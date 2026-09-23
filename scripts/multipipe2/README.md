@@ -25,8 +25,15 @@ cage into one smooth solid. No union, no fillet, nothing that can fail partway t
 
 ---
 
+## See it in action
+
+https://github.com/user-attachments/assets/071b6773-6232-4697-a9c9-91e274a16de6
+
+---
+
 ## Contents
 
+- [See it in action](#see-it-in-action)
 - [What it does](#what-it-does)
 - [Options](#options)
 - [Tight angles grow the joint](#tight-angles-grow-the-joint)
