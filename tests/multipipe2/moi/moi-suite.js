@@ -9,6 +9,9 @@
 //   s.close(); (0, eval)(t);
 //   return runMoiSuite(ROOT);
 //
+// Every scene runs with Cap on; the 'cap off' runs repeat some with Cap off, where each free end must come in as one
+// open boundary (its naked edges join into one closed loop), and a frame without free ends must still be a closed
+// solid.
 // Returns { passed, failed: [ { scene, reason } ], results: [ { scene, ms, objects } ] }.
 
 function runMoiSuite(root) {
@@ -25,7 +28,9 @@ function runMoiSuite(root) {
 
   var gd = moi.geometryDatabase, R = 2, tol = gd.tolerance;
   var tmp = moi.filesystem.getTempDir() + 'MultiPipe2-cage.obj';
-  var names = ['line', 'bend90', 'cubeframe', 'twobends', 'hairpin30', 'k5skew', 'd8', 'roofTruss', 'polyframe'];
+  var names = ['line', 'bend90', 'cubeframe', 'twobends', 'hairpin30', 'k5skew', 'd8', 'roofTruss', 'polyframe'], runs = [], n;
+  for (n = 0; n < names.length; n++) runs.push({ name: names[n], cap: true });
+  runs.push({ name: 'line', cap: false }, { name: 'bend90', cap: false }, { name: 'polyframe', cap: false }, { name: 'cubeframe', cap: false });
   var VM = moi.vectorMath;
   function curve(c) {
     var f = moi.command.createFactory('polyline');
@@ -33,27 +38,44 @@ function runMoiSuite(root) {
     var r = f.calculate(); f.cancel();
     return r.item(0);
   }
+  // An object's open boundaries as closed loops: a naked edge that is closed on its own is one, the rest are joined
+  // (join returns nothing when it has nothing to join). Returns -1 when some boundary does not close.
+  function boundaries(obj) {
+    var naked = obj.getNakedEdges(), rest = gd.createObjectList(), loops = 0, i;
+    for (i = 0; i < naked.length; i++) if (naked.item(i).isClosed) loops++; else rest.addObject(naked.item(i));
+    if (!rest.length) return loops;
+    var f = moi.command.createFactory('join');
+    f.setInput(0, rest);
+    var r = f.calculate(); f.cancel();
+    for (i = 0; i < r.length; i++) if (r.item(i).isClosed) loops++; else return -1;
+    return r.length ? loops : -1;
+  }
   var before = gd.getObjects().length, out = { passed: 0, failed: [], results: [] };
-  for (var n = 0; n < names.length; n++) {
-    var spec = scenes[names[n]], curves = gd.createObjectList(), i, reason = '';
+  for (n = 0; n < runs.length; n++) {
+    var name = runs[n].name, label = name + (runs[n].cap ? '' : ' (cap off)'), spec = scenes[name], curves = gd.createObjectList(), i, reason = '';
     for (i = 0; i < spec.length; i++) curves.addObject(curve(spec[i]));
     var input = describe(curves);
-    var cage = plan(input, { radius: R, nodeSize: 1.6, tolerance: tol }), t0 = new Date().getTime();
-    var objs = cage.report.errors.length ? gd.createObjectList() : importCage(cage), boxes = [];
-    out.results.push({ scene: names[n], ms: new Date().getTime() - t0, objects: objs.length });
+    var cage = plan(input, { radius: R, nodeSize: 1.6, cap: runs[n].cap, tolerance: tol }), t0 = new Date().getTime();
+    var objs = cage.report.errors.length ? gd.createObjectList() : importCage(cage), boxes = [], nakedLoops = 0;
+    out.results.push({ scene: label, ms: new Date().getTime() - t0, objects: objs.length });
     for (i = 0; i < objs.length; i++) {
       var b = objs.item(i).getBoundingBox();
       boxes.push([b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z]);
-      if (!objs.item(i).isSolidBRep) reason = 'object ' + i + ' is not a closed solid';
+      var open = !runs[n].cap && cage.report.freeEnds, loops = boundaries(objs.item(i));
+      if (!open && !objs.item(i).isSolidBRep) reason = 'object ' + i + ' is not a closed solid';
+      if (open && objs.item(i).isSolidBRep) reason = 'object ' + i + ' is closed with Cap off';
+      if (loops < 0) reason = 'object ' + i + ' has an open boundary that is not a closed loop';
+      nakedLoops += loops;
       objs.item(i).name = '';
       if (objs.item(i).name) reason = 'name not cleared';
     }
     if (cage.report.errors.length) reason = cage.report.errors.join('; ');
-    else if (names[n] === 'polyframe' && (input[0].kind !== 'polyline' || objs.length !== 1)) reason = 'polyline not one pipe frame';
+    else if (name === 'polyframe' && (input[0].kind !== 'polyline' || objs.length !== 1)) reason = 'polyline not one pipe frame';
     else if (objs.length !== cage.report.pipeFrames) reason = 'expected ' + cage.report.pipeFrames + ' pipe frames, got ' + objs.length;
     else if (moi.filesystem.fileExists(tmp)) reason = 'temp file left behind';
+    else if (!reason && nakedLoops !== (runs[n].cap ? 0 : cage.report.freeEnds)) reason = nakedLoops + ' open boundaries, expected ' + (runs[n].cap ? 0 : cage.report.freeEnds);
     else if (!reason) reason = checkImport(cage.box, boxes, tol);
-    if (!reason && names[n] === 'line') {
+    if (!reason && name === 'line' && runs[n].cap) {
       // A lone strut along X from 0 to 30: its radius within 2% of R, its rounded ends within 0.15 R of the line's ends.
       var bb = boxes[0], rad = (bb[4] - bb[1] + bb[5] - bb[2]) / 4;
       out.results[n].radius = rad;
@@ -62,7 +84,7 @@ function runMoiSuite(root) {
       else if (bb[0] > 0.15 * R || 30 - bb[3] > 0.15 * R) reason = 'ends stop ' + bb[0] + ' and ' + (30 - bb[3]) + ' short';
     }
     if (objs.length) gd.removeObjects(objs);
-    if (reason) out.failed.push({ scene: names[n], reason: reason }); else out.passed++;
+    if (reason) out.failed.push({ scene: label, reason: reason }); else out.passed++;
   }
   if (gd.getObjects().length !== before) out.failed.push({ scene: '*', reason: 'document changed' });
   return out;

@@ -73,9 +73,38 @@ test('rings sit nodeSize x radius from a node', () => {
   assert.deepStrictEqual(xs, [0, R, 30 - 1.6 * R, 30 + 1.6 * R, 60 - R, 60].map((x) => +x.toFixed(9)));
 });
 
-test('cap off leaves each free end open', () => {
-  const cage = run('bend90', { cap: false });
-  assert.strictEqual(cage.faces.filter((f) => f.every((i) => cage.vertices[i][0] === 30)).length, 0);
+test('cap off: exactly four open edges at each free end, none anywhere else; no free ends stays closed', () => {
+  const frames = { line: 1, bend90: 1, twobends: 2, polyframe: 1, cubeframe: 1, hairpin30: 1 };
+  for (const name of Object.keys(frames)) {
+    const spec = scenes[name], cage = plan(v1Input(spec), { ...opts, cap: false }), r = cage.report;
+    assert.deepStrictEqual(r.errors, [], name);
+    assert.strictEqual(r.pipeFrames, frames[name], name);
+    // Free ends: segment ends that appear once.
+    const ends = spec.flatMap((c) => c.pts.slice(1).flatMap((p, i) => [c.pts[i], p]));
+    const free = ends.filter((p) => ends.filter((q) => Math.hypot(...sub(p, q)) < 1e-9).length === 1);
+    assert.strictEqual(r.freeEnds, free.length, name);
+    if (!free.length) { assertClosedAndWound(cage, name); continue; }
+    // Edges: each used twice in opposite directions, except the open ones, used once.
+    const directed = new Set(), count = new Map();
+    for (const f of cage.faces) f.forEach((a, i) => {
+      const b = f[(i + 1) % f.length], k = Math.min(a, b) + '_' + Math.max(a, b);
+      assert.ok(!directed.has(a + '>' + b), name + ': edge ' + a + '>' + b + ' twice in one direction');
+      directed.add(a + '>' + b);
+      count.set(k, (count.get(k) || 0) + 1);
+    });
+    const perEnd = free.map(() => 0);
+    for (const [k, n] of count) {
+      if (n === 2) continue;
+      assert.strictEqual(n, 1, name + ': edge ' + k + ' used ' + n + ' times');
+      // An open edge's two vertices both sit on one free end's ring, W * sqrt2 from the end point.
+      const [a, b] = k.split('_').map((i) => cage.vertices[+i]);
+      const e = free.findIndex((p) => Math.abs(Math.hypot(...sub(a, p)) - W * Math.SQRT2) < 1e-9 &&
+        Math.abs(Math.hypot(...sub(b, p)) - W * Math.SQRT2) < 1e-9);
+      assert.ok(e >= 0, name + ': open edge ' + k + ' away from every free end');
+      perEnd[e]++;
+    }
+    assert.deepStrictEqual(perEnd, free.map(() => 4), name);
+  }
 });
 
 test('endpoints within tolerance meet at one node', () => {
