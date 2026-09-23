@@ -132,6 +132,8 @@ function MultiPipe2() {
       r.largestReach.toFixed(2) + ' x Radius.' : '') +
     (r.shortStruts ? '<br>' + plural(r.shortStruts, 'strut') + ' shorter than ' + (r.shortStruts == 1 ? 'its' : 'their') +
       ' joints; the frame may intersect itself there.' : '') +
+    (r.roundedNodes ? '<br>' + plural(r.roundedNodes, 'node') + ' came to a miter point.' : '') +
+    (r.roundedNodeFallbacks ? '<br>' + plural(r.roundedNodeFallbacks, 'node') + ' could not and kept the usual joint.' : '') +
     (!cap && r.freeEnds ? '<br>Cap is off: ' + plural(r.freeEnds, 'free end') + ' left open, so the result is an open surface, not a solid.' : ''));
   if (!waitForDone()) moi.geometryDatabase.removeObjects(objs);
 }
