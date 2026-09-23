@@ -11,7 +11,7 @@
 //
 // Every scene runs with Cap on; the 'cap off' runs repeat some with Cap off, where each free end must come in as one
 // open boundary (its naked edges join into one closed loop), and a frame without free ends must still be a closed
-// solid.
+// solid. The 'N=3' runs repeat some with Divisions 3 and must still come in as closed solids.
 // Returns { passed, failed: [ { scene, reason } ], results: [ { scene, ms, objects } ] }.
 
 function runMoiSuite(root) {
@@ -31,6 +31,7 @@ function runMoiSuite(root) {
   var names = ['line', 'bend90', 'cubeframe', 'twobends', 'hairpin30', 'k5skew', 'd8', 'roofTruss', 'polyframe'], runs = [], n;
   for (n = 0; n < names.length; n++) runs.push({ name: names[n], cap: true });
   runs.push({ name: 'line', cap: false }, { name: 'bend90', cap: false }, { name: 'polyframe', cap: false }, { name: 'cubeframe', cap: false });
+  runs.push({ name: 'cubeframe', cap: true, divisions: 3 }, { name: 'polyframe', cap: true, divisions: 3 });
   var VM = moi.vectorMath;
   function curve(c) {
     var f = moi.command.createFactory('polyline');
@@ -52,10 +53,10 @@ function runMoiSuite(root) {
   }
   var before = gd.getObjects().length, out = { passed: 0, failed: [], results: [] };
   for (n = 0; n < runs.length; n++) {
-    var name = runs[n].name, label = name + (runs[n].cap ? '' : ' (cap off)'), spec = scenes[name], curves = gd.createObjectList(), i, reason = '';
+    var name = runs[n].name, label = name + (runs[n].cap ? '' : ' (cap off)') + (runs[n].divisions ? ' (N=' + runs[n].divisions + ')' : ''), spec = scenes[name], curves = gd.createObjectList(), i, reason = '';
     for (i = 0; i < spec.length; i++) curves.addObject(curve(spec[i]));
     var input = describe(curves);
-    var cage = plan(input, { radius: R, nodeSize: 1.6, cap: runs[n].cap, tolerance: tol }), t0 = new Date().getTime();
+    var cage = plan(input, { radius: R, nodeSize: 1.6, divisions: runs[n].divisions, cap: runs[n].cap, tolerance: tol }), t0 = new Date().getTime();
     var objs = cage.report.errors.length ? gd.createObjectList() : importCage(cage), boxes = [], nakedLoops = 0;
     out.results.push({ scene: label, ms: new Date().getTime() - t0, objects: objs.length });
     for (i = 0; i < objs.length; i++) {

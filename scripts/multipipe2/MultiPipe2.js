@@ -77,10 +77,12 @@ function MultiPipe2() {
   curves.lockSelection();
 
   show('Options');
+  moi.ui.commandUI.divisions.disabled = moi.ui.commandUI.auto.value;
   if (!waitForDone()) return;
 
   var ui = moi.ui.commandUI, cap = ui.cap.value;
-  var cage = plan(describe(curves), { radius: ui.radius.value, nodeSize: ui.nodesize.value, cap: cap,
+  var cage = plan(describe(curves), { radius: ui.radius.value, nodeSize: ui.nodesize.value,
+    divisions: ui.auto.value ? 'auto' : ui.divisions.value, cap: cap,
     tolerance: moi.geometryDatabase.tolerance });
   var r = cage.report;
   if (r.errors.length) { stop(r.errors.join('<br>')); return; }

@@ -12,6 +12,9 @@
 		<table id="Options" class="hiddencommandui">
 			<tr><td>Radius:</td><td><moi:DistanceInput id="radius" default="0.5" /></td></tr>
 			<tr><td>Node size:</td><td><moi:NumericInput id="nodesize" default="1.6" /></td></tr>
+			<!-- The number applies only with Auto off; MultiPipe2.js sets the same state when the options show. -->
+			<tr><td>Divisions:</td><td><moi:CheckButton id="auto" default="true" onclick="moi.ui.commandUI.divisions.disabled = this.value;">Auto</moi:CheckButton>
+				<moi:NumericInput id="divisions" default="0" /></td></tr>
 			<tr><td>Cap:</td><td><moi:CheckButton id="cap" default="true">On</moi:CheckButton></td></tr>
 		</table>
 		<div id="Summary" class="hiddencommandui"></div>

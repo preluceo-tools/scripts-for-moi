@@ -220,3 +220,37 @@ test('struts that touch only at a shared node or a tip are not crossings, at any
   const tiny = { ...v1Opts, radius: 0.0005, tolerance: 1e-6 };
   assert.strictEqual(plan([line([0, 0, 0], [0.01, 0, 0]), line([0.005, -0.005, 0], [0.005, 0.005, 0])], tiny).report.crossings, 1);
 });
+
+test('divisions: N extra rings on every strut, evenly spaced between its end rings, after any free-end ring', () => {
+  // Rings per strut: two end rings, one more at each free end, plus N. Joints add no vertices, so rings = vertices / 4.
+  for (const n of [0, 1, 3]) {
+    for (const name of ['line', 'straight', 'bend90', 'cubeframe', 'twobends', 'polyframe']) {
+      const spec = scenes[name], cage = plan(v1Input(spec), { ...opts, divisions: n }), r = cage.report;
+      assert.deepStrictEqual(r.errors, [], name);
+      const ends = spec.flatMap((c) => c.pts.slice(1).flatMap((p, i) => [c.pts[i], p]));
+      const free = ends.filter((p) => ends.filter((q) => Math.hypot(...sub(p, q)) < 1e-9).length === 1).length;
+      assert.strictEqual(cage.vertices.length / 4, r.struts * (2 + n) + free, name + ' N=' + n);
+      assertClosedAndWound(cage, name + ' N=' + n);
+    }
+  }
+  const xs = (cage) => [...new Set(cage.vertices.map((v) => +v[0].toFixed(9)))].sort((a, b) => a - b);
+  // A lone strut 0-30: free-end rings at R and 30 - R, three rings between them 6.5 apart.
+  assert.deepStrictEqual(xs(run('line', { divisions: 3 })), [0, R, 8.5, 15, 21.5, 30 - R, 30].map((x) => +x.toFixed(9)));
+  // Two struts through a node at 30: one ring halfway between the free-end ring and the node's ring.
+  const d = 1.6 * R;
+  assert.deepStrictEqual(xs(run('straight', { divisions: 1 })),
+    [0, R, (R + 30 - d) / 2, 30 - d, 30 + d, (30 + d + 60 - R) / 2, 60 - R, 60].map((x) => +x.toFixed(9)));
+});
+
+test('divisions Auto: straight struts get the same cage as N = 0', () => {
+  for (const name of ['line', 'bend90', 'cubeframe', 'roofTruss']) {
+    assert.deepStrictEqual(run(name, { divisions: 'auto' }), run(name, { divisions: 0 }), name);
+    assert.deepStrictEqual(run(name), run(name, { divisions: 0 }), name);
+  }
+});
+
+test('divisions must be a whole number of 0 or more', () => {
+  for (const bad of [-1, 1.5, NaN, Infinity, '3', null]) {
+    assert.match(run('line', { divisions: bad }).report.errors[0], /Divisions must be a whole number of 0 or more/, String(bad));
+  }
+});

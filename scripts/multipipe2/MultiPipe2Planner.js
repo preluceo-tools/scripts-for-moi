@@ -5,7 +5,9 @@
 //   curves:  [ { kind: 'line', start: [x,y,z], end: [x,y,z] } | { kind: 'polyline', points: [[x,y,z], ...] } ]
 //            any other kind is an error. A polyline gives one strut per segment, a node at every corner;
 //            zero-length segments inside it are skipped.
-//   options: { radius, nodeSize, cap, tolerance }  nodeSize >= 1.0; cap defaults to true
+//   options: { radius, nodeSize, divisions, cap, tolerance }  nodeSize >= 1.0; cap defaults to true;
+//            divisions 'auto' (the default: straight struts get no extra rings) or a whole number N >= 0, the extra
+//            rings on every strut, spaced evenly between its end rings (after any free-end ring)
 //   returns: { vertices: [[x,y,z], ...], faces: [[i, j, k, l], ...], box: [minX, minY, minZ, maxX, maxY, maxZ],
 //              report: { pipeFrames, struts, nodes, freeEnds, duplicatesDropped, crossings, grownNodes, largestReach,
 //                        shortStruts, errors, warnings } }
@@ -118,6 +120,8 @@ function plan(curves, options) {
   var out = { vertices: V, faces: F, box: null, report: report };
   if (!(R > 0)) report.errors.push('Radius must be greater than zero.');
   if (!(options.nodeSize >= 1)) report.errors.push('Node size must be at least 1.0.');
+  var divs = options.divisions === undefined || options.divisions === 'auto' ? 0 : options.divisions;
+  if (!(typeof divs === 'number' && isFinite(divs) && divs >= 0 && Math.floor(divs) === divs)) report.errors.push('Divisions must be a whole number of 0 or more.');
   if (!curves || !curves.length) report.errors.push('Select at least one curve.');
   if (report.errors.length) return out;
   var w = R * WIDTH, d0 = options.nodeSize * R;
@@ -213,6 +217,9 @@ function plan(curves, options) {
     if (free0) at.push(R);
     if (free1) at.push(L - R);
     at.push(free1 ? L : L - d2);
+    // Divisions: N extra rings spaced evenly between the innermost rings.
+    var lo = at[free0 ? 1 : 0], hi = at[free1 ? at.length - 2 : at.length - 1];
+    for (j = 1; j <= divs; j++) at.splice(at.length - (free1 ? 2 : 1), 0, lo + (hi - lo) * j / (divs + 1));
     var rs = [];
     for (j = 0; j < at.length; j++) {
       var ctr = add(a, mul(dir, at[j])), ring = [];
