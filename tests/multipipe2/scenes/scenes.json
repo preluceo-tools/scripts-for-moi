@@ -1,0 +1,45 @@
+{
+  "_about": "MultiPipe2 sample scenes, same format as MultiPipe's scene file. Each scene is a list of curves; line gives its two ends.",
+  "line": [
+    { "type": "line", "pts": [[0, 0, 0], [30, 0, 0]] }
+  ],
+  "straight": [
+    { "type": "line", "pts": [[0, 0, 0], [30, 0, 0]] },
+    { "type": "line", "pts": [[30, 0, 0], [60, 0, 0]] }
+  ],
+  "bend90": [
+    { "type": "line", "pts": [[0, 0, 0], [30, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 30, 0]] }
+  ],
+  "y3ortho": [
+    { "type": "line", "pts": [[0, 0, 0], [30, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 30, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 0, 30]] }
+  ],
+  "x4planar": [
+    { "type": "line", "pts": [[0, 0, 0], [30, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 30, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [-30, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, -30, 0]] }
+  ],
+  "cubeframe": [
+    { "type": "line", "pts": [[0, 0, 0], [40, 0, 0]] },
+    { "type": "line", "pts": [[0, 40, 0], [40, 40, 0]] },
+    { "type": "line", "pts": [[0, 0, 40], [40, 0, 40]] },
+    { "type": "line", "pts": [[0, 40, 40], [40, 40, 40]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 40, 0]] },
+    { "type": "line", "pts": [[40, 0, 0], [40, 40, 0]] },
+    { "type": "line", "pts": [[0, 0, 40], [0, 40, 40]] },
+    { "type": "line", "pts": [[40, 0, 40], [40, 40, 40]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 0, 40]] },
+    { "type": "line", "pts": [[40, 0, 0], [40, 0, 40]] },
+    { "type": "line", "pts": [[0, 40, 0], [0, 40, 40]] },
+    { "type": "line", "pts": [[40, 40, 0], [40, 40, 40]] }
+  ],
+  "twobends": [
+    { "type": "line", "pts": [[0, 0, 0], [30, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 30, 0]] },
+    { "type": "line", "pts": [[0, 0, 20], [30, 0, 20]] },
+    { "type": "line", "pts": [[0, 0, 20], [0, 0, 50]] }
+  ]
+}

@@ -1,0 +1,59 @@
+// MultiPipe2 MoI suite, run inside MoI through the MoI MCP bridge (moi_eval). ES5 only.
+// It loads the planner and the command's functions fresh from <repo>, imports each scene's cage through the
+// command's own importCage(), checks the solids, then removes everything it made. Call it with:
+//
+//   var ROOT = '<repo folder>/';   // forward slashes, trailing slash
+//   var s = moi.filesystem.openFileStream(ROOT + 'tests/multipipe2/moi/moi-suite.js', 'r'), t = '';
+//   while (!s.AtEOF) t += s.readLine() + '\n';
+//   s.close(); (0, eval)(t);
+//   return runMoiSuite(ROOT);
+//
+// Returns { passed, failed: [ { scene, reason } ], results: [ { scene, ms, objects } ] }.
+
+function runMoiSuite(root) {
+  function read(path) {
+    var s = moi.filesystem.openFileStream(root + path, 'r'), t = '';
+    while (!s.AtEOF) t += s.readLine() + '\n';
+    s.close();
+    return t;
+  }
+  (0, eval)(read('scripts/multipipe2/MultiPipe2Planner.js'));
+  // The command's helpers without its #include line and without running it.
+  (0, eval)(read('scripts/multipipe2/MultiPipe2.js').replace(/^#include.*$/m, '').replace(/^MultiPipe2\(\);\s*$/m, ''));
+  var scenes = eval('(' + read('tests/multipipe2/scenes/scenes.json') + ')');
+
+  var gd = moi.geometryDatabase, R = 2, tol = gd.tolerance;
+  var tmp = moi.filesystem.getTempDir() + 'MultiPipe2-cage.obj';
+  var names = ['line', 'bend90', 'cubeframe', 'twobends'];
+  var before = gd.getObjects().length, out = { passed: 0, failed: [], results: [] };
+  for (var n = 0; n < names.length; n++) {
+    var spec = scenes[names[n]], input = [], i, reason = '';
+    for (i = 0; i < spec.length; i++) input.push({ kind: 'line', start: spec[i].pts[0], end: spec[i].pts[1] });
+    var cage = plan(input, { radius: R, nodeSize: 1.6, tolerance: tol }), t0 = new Date().getTime();
+    var objs = cage.report.errors.length ? gd.createObjectList() : importCage(cage), boxes = [];
+    out.results.push({ scene: names[n], ms: new Date().getTime() - t0, objects: objs.length });
+    for (i = 0; i < objs.length; i++) {
+      var b = objs.item(i).getBoundingBox();
+      boxes.push([b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z]);
+      if (!objs.item(i).isSolidBRep) reason = 'object ' + i + ' is not a closed solid';
+      objs.item(i).name = '';
+      if (objs.item(i).name) reason = 'name not cleared';
+    }
+    if (cage.report.errors.length) reason = cage.report.errors.join('; ');
+    else if (objs.length !== cage.report.pipeFrames) reason = 'expected ' + cage.report.pipeFrames + ' pipe frames, got ' + objs.length;
+    else if (moi.filesystem.fileExists(tmp)) reason = 'temp file left behind';
+    else if (!reason) reason = checkImport(cage.box, boxes, tol);
+    if (!reason && names[n] === 'line') {
+      // A lone strut along X from 0 to 30: its radius within 2% of R, its rounded ends within 0.15 R of the line's ends.
+      var bb = boxes[0], rad = (bb[4] - bb[1] + bb[5] - bb[2]) / 4;
+      out.results[n].radius = rad;
+      out.results[n].ends = [bb[0], 30 - bb[3]];
+      if (Math.abs(rad - R) > 0.02 * R) reason = 'radius ' + rad + ', expected ' + R;
+      else if (bb[0] > 0.15 * R || 30 - bb[3] > 0.15 * R) reason = 'ends stop ' + bb[0] + ' and ' + (30 - bb[3]) + ' short';
+    }
+    if (objs.length) gd.removeObjects(objs);
+    if (reason) out.failed.push({ scene: names[n], reason: reason }); else out.passed++;
+  }
+  if (gd.getObjects().length !== before) out.failed.push({ scene: '*', reason: 'document changed' });
+  return out;
+}

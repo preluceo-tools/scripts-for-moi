@@ -1,0 +1,20 @@
+<html xmlns:moi>
+	<head>
+		<link rel="stylesheet" href="moi://ui/moi.css" type="text/css">
+	</head>
+	<body class="commandbody">
+		<div class="commandheader">
+			<div id="SelectPrompt" class="commandprompt">Select curves for MultiPipe2, then press Done</div>
+			<div id="OptionsPrompt" class="hiddencommandui">Set the options, then press Done</div>
+			<div id="BuildingPrompt" class="hiddencommandui">Building the pipe frame, please wait</div>
+			<div id="SummaryPrompt" class="hiddencommandui">Press Done to keep it, or Cancel to add nothing</div>
+		</div>
+		<table id="Options" class="hiddencommandui">
+			<tr><td>Radius:</td><td><moi:DistanceInput id="radius" default="0.5" /></td></tr>
+			<tr><td>Node size:</td><td><moi:NumericInput id="nodesize" default="1.6" /></td></tr>
+			<tr><td>Cap:</td><td><moi:CheckButton id="cap" default="true">On</moi:CheckButton></td></tr>
+		</table>
+		<div id="Summary" class="hiddencommandui"></div>
+		<moi:CommandDoneCancel />
+	</body>
+</html>
