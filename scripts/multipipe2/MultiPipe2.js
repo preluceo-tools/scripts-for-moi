@@ -94,6 +94,10 @@ function MultiPipe2() {
 
   show('SummaryPrompt', plural(r.pipeFrames, 'pipe frame') + ', ' + plural(r.struts, 'strut') + ', ' +
     plural(r.nodes, 'node') + ', ' + plural(r.freeEnds, 'free end') +
+    (r.grownNodes ? '<br>' + plural(r.grownNodes, 'node') + ' grew for tight angles, reaching up to ' +
+      r.largestReach.toFixed(2) + ' x Radius.' : '') +
+    (r.shortStruts ? '<br>' + plural(r.shortStruts, 'strut') + ' shorter than ' + (r.shortStruts == 1 ? 'its' : 'their') +
+      ' joints; the frame may intersect itself there.' : '') +
     (!cap && r.freeEnds ? '<br>Cap is off: free ends left open.' : ''));
   if (!waitForDone()) moi.geometryDatabase.removeObjects(objs);
 }

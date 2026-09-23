@@ -5,8 +5,10 @@
 //   curves:  [ { kind: 'line', start: [x,y,z], end: [x,y,z] } ]  any other kind is an error
 //   options: { radius, nodeSize, cap, tolerance }  nodeSize >= 1.0; cap defaults to true
 //   returns: { vertices: [[x,y,z], ...], faces: [[i, j, k, l], ...], box: [minX, minY, minZ, maxX, maxY, maxZ],
-//              report: { pipeFrames, struts, nodes, freeEnds, errors, warnings } }
-//   The cage: a square ring (half-width radius / 0.93) at nodeSize x radius from every node on each strut,
+//              report: { pipeFrames, struts, nodes, freeEnds, grownNodes, largestReach, shortStruts, errors, warnings } }
+//   largestReach: the largest ring offset at a grown node, as a factor of radius (0 when none grew).
+//   shortStruts: struts shorter than the ring offsets at their two ends (still built).
+//   The cage: a square ring (half-width radius / 0.93) at the node's ring offset from every node on each strut,
 //   the convex hull of a node's rings (ring facets removed) as its joint, quad tubes between rings, and at a
 //   free end an end ring, an extra ring 1 x radius in, and a cap face when cap is on. Faces wind outward.
 //
@@ -92,13 +94,14 @@ function orient(V, F) {
 function plan(curves, options) {
   var R = options.radius, tol = options.tolerance, cap = options.cap !== false, i, j, k;
   var V = [], F = [];
-  var report = { pipeFrames: 0, struts: 0, nodes: 0, freeEnds: 0, errors: [], warnings: [] };
+  var report = { pipeFrames: 0, struts: 0, nodes: 0, freeEnds: 0, grownNodes: 0, largestReach: 0, shortStruts: 0,
+    errors: [], warnings: [] };
   var out = { vertices: V, faces: F, box: null, report: report };
   if (!(R > 0)) report.errors.push('Radius must be greater than zero.');
   if (!(options.nodeSize >= 1)) report.errors.push('Node size must be at least 1.0.');
   if (!curves || !curves.length) report.errors.push('Select at least one curve.');
   if (report.errors.length) return out;
-  var w = R * WIDTH, d = options.nodeSize * R;
+  var w = R * WIDTH, d0 = options.nodeSize * R;
 
   // ponytail: O(n^2) endpoint clustering, a spatial hash when large frames need it.
   var points = [], inc = [], struts = [];
@@ -118,6 +121,23 @@ function plan(curves, options) {
   }
   if (report.errors.length) return out;
 
+  // One ring offset per node, shared by all its struts: nodeSize x R, grown so no neighbouring ring's corner
+  // reaches past a ring's plane. It must be one value per node; the bound assumes both rings sit at the same offset.
+  function where(p) { return '(' + p.map(function (x) { return x.toFixed(3); }).join(', ') + ')'; }
+  function away(e) { var s = struts[e.si]; return unit(sub(points[s[1 - e.end]], points[s[e.end]])); }
+  var reach = [];
+  for (var ni = 0; ni < points.length; ni++) {
+    var here = inc[ni], need = d0;
+    for (j = 0; j < here.length; j++) for (k = j + 1; k < here.length; k++) {
+      var th = Math.acos(Math.max(-1, Math.min(1, dot(away(here[j]), away(here[k])))));
+      if (th < 1e-6) { report.errors.push('Two curves at ' + where(points[ni]) + ' run in the same direction.'); continue; }
+      need = Math.max(need, 1.05 * w * Math.SQRT2 / Math.tan(th / 2));
+    }
+    if (here.length > 1 && need > d0 * 1.0001) { report.grownNodes++; report.largestReach = Math.max(report.largestReach, need / R); }
+    reach.push(need);
+  }
+  if (report.errors.length) return out;
+
   // One ring frame per strut, used at both ends so the tube does not twist. Reference axis world Z, or X when
   // the strut is near-vertical, so axis-aligned frames give cube-like joints.
   var rings = [];
@@ -126,10 +146,13 @@ function plan(curves, options) {
     var e1 = unit(cross(Math.abs(dir[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1], dir)), e2 = cross(dir, e1);
     var free0 = inc[struts[i][0]].length === 1, free1 = inc[struts[i][1]].length === 1;
     // Ring centres as distances from a: the node offset or the free end, plus the extra ring 1 x R in at a free end.
-    var at = [free0 ? 0 : d];
+    // A free end counts its extra ring, 1 x R, as its offset for the short-strut check.
+    var d1 = free0 ? R : reach[struts[i][0]], d2 = free1 ? R : reach[struts[i][1]];
+    if (L < d1 + d2) report.shortStruts++;
+    var at = [free0 ? 0 : d1];
     if (free0) at.push(R);
     if (free1) at.push(L - R);
-    at.push(free1 ? L : L - d);
+    at.push(free1 ? L : L - d2);
     var rs = [];
     for (j = 0; j < at.length; j++) {
       var ctr = add(a, mul(dir, at[j])), ring = [];
@@ -146,8 +169,8 @@ function plan(curves, options) {
     rings.push([rs[0], rs[rs.length - 1]]);
   }
 
-  for (var ni = 0; ni < points.length; ni++) {
-    var here = inc[ni];
+  for (ni = 0; ni < points.length; ni++) {
+    here = inc[ni];
     if (here.length === 1) {
       report.freeEnds++;
       if (cap) F.push(rings[here[0].si][here[0].end].slice());
@@ -168,8 +191,7 @@ function plan(curves, options) {
       F.push(facets[j].map(function (m) { return ids[m]; }));
     }
     for (j = 0; j < here.length; j++) {
-      if (!found[j]) report.errors.push('The joint at (' + points[ni].map(function (x) { return x.toFixed(3); }).join(', ') +
-        ') could not be built; its struts meet at too tight an angle.');
+      if (!found[j]) report.errors.push('The joint at ' + where(points[ni]) + ' could not be built; its struts meet at too tight an angle.');
     }
   }
   report.struts = struts.length;

@@ -105,3 +105,31 @@ test('import check: inside the cage box and at least 80% of it on every axis', (
   assert.match(checkImport(box, [[2, 2, 2, 8, 8, 8]], 0.01), /ScaleFactor/);
   assert.match(checkImport(box, [[0, 0, 0, 10, 10, 10.1]], 0.01), /ScaleFactor/);
 });
+
+test('tight angles grow the node: one closed cage, reach as a factor of radius', () => {
+  const want = { hairpin30: [1, 5.96], k5skew: [1, 2.39], d8: [1, 2.26], roofTruss: [6, 4.55], cubeframe: [0, 0] };
+  for (const name of Object.keys(want)) {
+    const cage = run(name), r = cage.report;
+    assert.deepStrictEqual(r.errors, [], name);
+    assert.strictEqual(r.pipeFrames, 1, name);
+    assert.strictEqual(r.grownNodes, want[name][0], name);
+    assert.ok(Math.abs(r.largestReach - want[name][1]) < 0.01, name + ': reach ' + r.largestReach);
+    assert.strictEqual(r.shortStruts, 0, name);
+    assertClosedAndWound(cage, name);
+  }
+});
+
+test('a strut shorter than its two end offsets is counted and still built', () => {
+  // A 30-degree hairpin with an 8-long arm: the node needs about 11.9, the free end 2.
+  const p = plan([{ kind: 'line', start: [0, 0, 0], end: [30, 0, 0] },
+    { kind: 'line', start: [0, 0, 0], end: [8 * Math.cos(Math.PI / 6), 8 * Math.sin(Math.PI / 6), 0] }], opts);
+  assert.deepStrictEqual(p.report.errors, []);
+  assert.strictEqual(p.report.shortStruts, 1);
+  assertClosedAndWound(p, 'short strut');
+});
+
+test('two struts in the same direction at a node are an error, not a cage', () => {
+  const p = plan([{ kind: 'line', start: [0, 0, 0], end: [30, 0, 0] }, { kind: 'line', start: [0, 0, 0], end: [20, 0, 0] }], opts);
+  assert.match(p.report.errors[0], /same direction/);
+  assert.strictEqual(p.faces.length, 0);
+});

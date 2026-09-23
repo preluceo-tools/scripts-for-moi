@@ -24,7 +24,7 @@ function runMoiSuite(root) {
 
   var gd = moi.geometryDatabase, R = 2, tol = gd.tolerance;
   var tmp = moi.filesystem.getTempDir() + 'MultiPipe2-cage.obj';
-  var names = ['line', 'bend90', 'cubeframe', 'twobends'];
+  var names = ['line', 'bend90', 'cubeframe', 'twobends', 'hairpin30', 'k5skew', 'd8', 'roofTruss'];
   var before = gd.getObjects().length, out = { passed: 0, failed: [], results: [] };
   for (var n = 0; n < names.length; n++) {
     var spec = scenes[names[n]], input = [], i, reason = '';
