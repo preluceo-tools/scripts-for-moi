@@ -249,6 +249,58 @@ test('divisions Auto: straight struts get the same cage as N = 0', () => {
   }
 });
 
+test('round joints off by default: same cage as ticket 07 baseline', () => {
+  for (const name of ['roofTruss', 'cubeframe']) {
+    assert.deepStrictEqual(run(name), run(name, { roundJoints: false, allNodes: false }), name);
+  }
+});
+
+test('round joints: collar only at grown nodes unless allNodes', () => {
+  // A grown (30-degree) node far from an ungrown (90-degree) one, so both are multi-strut but only one qualifies.
+  const hp = [{ kind: 'line', start: [0, 0, 0], end: [30, 0, 0] }, { kind: 'line', start: [0, 0, 0], end: [25.980762, 15, 0] }];
+  const bend = [{ kind: 'line', start: [1000, 0, 0], end: [1030, 0, 0] }, { kind: 'line', start: [1000, 0, 0], end: [1000, 30, 0] }];
+  const curves = [...hp, ...bend];
+  const base = plan(curves, opts);
+  assert.strictEqual(base.report.grownNodes, 1);
+  const rj = plan(curves, { ...opts, roundJoints: true });
+  const rjAll = plan(curves, { ...opts, roundJoints: true, allNodes: true });
+  assert.deepStrictEqual([rj.report.errors, rjAll.report.errors], [[], []]);
+  assertClosedAndWound(rj, 'roundJoints grown only');
+  assertClosedAndWound(rjAll, 'roundJoints allNodes');
+  // The grown node has degree 2: one collar ring per strut = 2 rings = 8 vertices with roundJoints alone.
+  assert.strictEqual(rj.vertices.length - base.vertices.length, 2 * 4);
+  // Both nodes are degree 2: 4 rings = 16 vertices with allNodes too.
+  assert.strictEqual(rjAll.vertices.length - base.vertices.length, 4 * 4);
+});
+
+test('round joints: allNodes adds a collar at every multi-strut node even when none grew', () => {
+  const base = run('cubeframe');
+  assert.strictEqual(base.report.grownNodes, 0);
+  const rj = run('cubeframe', { roundJoints: true });
+  assert.strictEqual(rj.vertices.length, base.vertices.length);
+  const all = run('cubeframe', { roundJoints: true, allNodes: true });
+  assert.deepStrictEqual(all.report.errors, []);
+  // Every strut end at a multi-strut node gains a collar: sum of node degree = 2 x struts - free ends.
+  assert.strictEqual(all.vertices.length - base.vertices.length, 4 * (2 * base.report.struts - base.report.freeEnds));
+  assertClosedAndWound(all, 'cubeframe allNodes');
+});
+
+test('round joints: collar vertices stay within the ring bound, roofTruss stays closed with both options on', () => {
+  const cage = run('roofTruss', { roundJoints: true, allNodes: true });
+  assert.deepStrictEqual(cage.report.errors, []);
+  assertClosedAndWound(cage, 'roofTruss round joints');
+  for (const v of cage.vertices) assert.ok(toCurves(v, scenes.roofTruss) <= W * Math.SQRT2 + 1e-9, 'vertex far from the curves');
+});
+
+test('round joints: a strut too short for its collar skips it silently, no crash', () => {
+  const p = plan([{ kind: 'line', start: [0, 0, 0], end: [30, 0, 0] },
+    { kind: 'line', start: [0, 0, 0], end: [8 * Math.cos(Math.PI / 6), 8 * Math.sin(Math.PI / 6), 0] }],
+    { ...opts, roundJoints: true, allNodes: true });
+  assert.deepStrictEqual(p.report.errors, []);
+  assert.strictEqual(p.report.shortStruts, 1);
+  assertClosedAndWound(p, 'short strut round joints');
+});
+
 test('divisions must be a whole number of 0 or more', () => {
   for (const bad of [-1, 1.5, NaN, Infinity, '3', null]) {
     assert.match(run('line', { divisions: bad }).report.errors[0], /Divisions must be a whole number of 0 or more/, String(bad));

@@ -8,11 +8,15 @@
 //            zero-length segments inside it are skipped. A smooth curve is one strut through its samples (dense, by
 //            arc length; the tangents are optional and default to the end chords). A smooth curve whose ends meet
 //            is a closed ring: with nothing else at its seam it is a closed tube with no node.
-//   options: { radius, nodeSize, divisions, cap, tolerance }  nodeSize >= 1.0; cap defaults to true;
-//            divisions 'auto' (the default: straight struts get no extra rings, curved struts the fewest evenly
-//            spaced rings that keep the curve's turn between consecutive rings within TURN) or a whole number N >= 0,
-//            the extra rings on every strut, spaced evenly between its end rings (after any free-end ring); a closed
-//            tube gets N + 1 rings, at least 3
+//   options: { radius, nodeSize, divisions, cap, tolerance, roundJoints, allNodes }  nodeSize >= 1.0; cap defaults
+//            to true; divisions 'auto' (the default: straight struts get no extra rings, curved struts the fewest
+//            evenly spaced rings that keep the curve's turn between consecutive rings within TURN) or a whole
+//            number N >= 0, the extra rings on every strut, spaced evenly between its end rings (after any
+//            free-end ring); a closed tube gets N + 1 rings, at least 3. roundJoints (default false): every node
+//            that grew (report.grownNodes) gets one extra plain ring per strut, w further inboard than the joint
+//            ring, to hold the SubD limit surface round at a pinched joint; skipped at a strut too short to fit
+//            it. allNodes (default false, no effect unless roundJoints is true): every multi-strut node gets the
+//            collar, not just grown ones.
 //   returns: { vertices: [[x,y,z], ...], faces: [[i, j, k, l], ...], box: [minX, minY, minZ, maxX, maxY, maxZ],
 //              report: { pipeFrames, struts, nodes, freeEnds, duplicatesDropped, crossings, grownNodes, largestReach,
 //                        shortStruts, errors, warnings } }
@@ -266,17 +270,18 @@ function plan(curves, options) {
   // A closed ring: a strut from a node back to itself with nothing else there. It becomes a closed tube, no node.
   function isLoop(n) { return inc[n].length === 2 && inc[n][0].si === inc[n][1].si; }
   function away(e) { var t = tracks[e.si].t; return e.end ? mul(t[t.length - 1], -1) : t[0]; }
-  var reach = [];
+  var reach = [], grew = [];
   for (var ni = 0; ni < points.length; ni++) {
     var here = inc[ni], need = d0;
-    if (isLoop(ni)) { reach.push(0); continue; }
+    if (isLoop(ni)) { reach.push(0); grew.push(false); continue; }
     for (j = 0; j < here.length; j++) for (k = j + 1; k < here.length; k++) {
       var th = Math.acos(Math.max(-1, Math.min(1, dot(away(here[j]), away(here[k])))));
       if (th < 1e-6) { report.errors.push('Two curves at ' + where(points[ni]) + ' run in the same direction.'); continue; }
       need = Math.max(need, 1.05 * w * Math.SQRT2 / Math.tan(th / 2));
     }
-    if (here.length > 1 && need > d0 * 1.0001) { report.grownNodes++; report.largestReach = Math.max(report.largestReach, need / R); }
-    reach.push(need);
+    var didGrow = here.length > 1 && need > d0 * 1.0001;
+    if (didGrow) { report.grownNodes++; report.largestReach = Math.max(report.largestReach, need / R); }
+    reach.push(need); grew.push(didGrow);
   }
   if (report.errors.length) return out;
 
@@ -310,6 +315,19 @@ function plan(curves, options) {
       // Divisions: N extra rings spaced evenly between the innermost rings; Auto adds them only where the curve turns.
       var lo = at[free0 ? 1 : 0], hi = at[free1 ? at.length - 2 : at.length - 1], nd = auto ? spans(tr, lo, hi, 1) - 1 : divs;
       for (j = 1; j <= nd; j++) at.splice(at.length - (free1 ? 2 : 1), 0, lo + (hi - lo) * j / (nd + 1));
+      // Round joints: one extra plain ring per qualifying node end, w further inboard than the joint ring
+      // (independent of Divisions). Skipped silently if the strut has no room for it.
+      if (options.roundJoints) {
+        var qualifies = function (nid) { return inc[nid].length > 1 && (options.allNodes || grew[nid]); };
+        if (!free0 && qualifies(struts[i][0])) {
+          var c0 = at[0] + w;
+          if (c0 < at[1] - 1e-9) at.splice(1, 0, c0);
+        }
+        if (!free1 && qualifies(struts[i][1])) {
+          var c1 = at[at.length - 1] - w;
+          if (c1 > at[at.length - 2] + 1e-9) at.splice(at.length - 1, 0, c1);
+        }
+      }
       for (j = 0; j < at.length; j++) fr.push(frameAt(tr, at[j]));
     }
     for (j = 0; j < fr.length; j++) {

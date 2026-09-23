@@ -99,6 +99,7 @@ function MultiPipe2() {
 
   show('Options');
   moi.ui.commandUI.divisions.disabled = moi.ui.commandUI.auto.value;
+  moi.ui.commandUI.allNodes.disabled = !moi.ui.commandUI.roundJoints.value;
   if (!waitForDone()) return;
 
   // The count before planning is the input segments; duplicates the planner drops are still in it.
@@ -107,6 +108,7 @@ function MultiPipe2() {
   show('BuildingPrompt', 'Building ' + plural(segments, 'strut') + '...');
   var cage = plan(input, { radius: ui.radius.value, nodeSize: ui.nodesize.value,
     divisions: ui.auto.value ? 'auto' : ui.divisions.value, cap: cap,
+    roundJoints: ui.roundJoints.value, allNodes: ui.allNodes.value,
     tolerance: moi.geometryDatabase.tolerance });
   var r = cage.report;
   if (r.errors.length) { stop(r.errors.join('<br>')); return; }

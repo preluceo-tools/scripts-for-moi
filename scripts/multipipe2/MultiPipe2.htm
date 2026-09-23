@@ -16,6 +16,8 @@
 			<tr><td>Divisions:</td><td><moi:CheckButton id="auto" default="true" onclick="moi.ui.commandUI.divisions.disabled = this.value;">Auto</moi:CheckButton>
 				<moi:NumericInput id="divisions" default="0" /></td></tr>
 			<tr><td>Cap:</td><td><moi:CheckButton id="cap" default="true">On</moi:CheckButton></td></tr>
+			<tr><td>Round joints:</td><td><moi:CheckButton id="roundJoints" default="false" onclick="moi.ui.commandUI.allNodes.disabled = !this.value;">On</moi:CheckButton></td></tr>
+			<tr><td>All nodes:</td><td><moi:CheckButton id="allNodes" default="false">On</moi:CheckButton></td></tr>
 		</table>
 		<div id="Summary" class="hiddencommandui"></div>
 		<moi:CommandDoneCancel />
