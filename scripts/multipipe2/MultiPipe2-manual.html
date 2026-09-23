@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MultiPipe2 for MoI &mdash; Manual</title>
+<style>
+  body { font: 16px/1.55 "Segoe UI", system-ui, sans-serif; color: #222; background: #fff;
+         max-width: 46em; margin: 2em auto; padding: 0 1em; }
+  h1 { font-size: 1.9em; margin-bottom: 0; }
+  h2 { margin-top: 2em; border-bottom: 1px solid #ddd; padding-bottom: .2em; }
+  h3 { margin-top: 1.5em; font-size: 1.1em; }
+  code, kbd { font-family: Consolas, "Courier New", monospace; background: #f4f4f4;
+              padding: .08em .3em; border-radius: 3px; font-size: .92em; }
+  pre { background: #f4f4f4; padding: .8em 1em; overflow-x: auto; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+  th, td { border: 1px solid #ccc; padding: .45em .6em; text-align: left; vertical-align: top; font-size: .95em; }
+  th { background: #f0f0f0; }
+  .lead { color: #555; font-size: 1.05em; }
+  .note { background: #f7f7ef; border-left: 4px solid #c9c07a; padding: .7em 1em; margin: 1em 0; }
+</style>
+</head>
+<body>
+
+<h1>MultiPipe2</h1>
+<p class="lead">Turn a network of curves into a smooth pipe frame, inside MoI, in a single step.</p>
+
+<p>MultiPipe2 builds a coarse <strong>cage</strong> around the curves you select &mdash; square rings along
+every strut, and a joint at every node that bridges the rings of the struts meeting there &mdash; and lets
+MoI's own SubD import subdivide it into a smooth NURBS solid. Struts flow into each other through rounded
+joints, with no union and no fillet. You get one pipe frame per connected group of curves. Your input
+curves are kept, and the whole result is a single undo step.</p>
+
+<h2>Install</h2>
+
+<p>MultiPipe2 is a MoI command: installing it is copying files. Nothing has to be downloaded or run in the
+background. It has its own name and its own files, so it installs beside MultiPipe (the first version)
+and both commands keep working.</p>
+
+<ol>
+  <li>Copy these files into your MoI commands folder:
+    <ul>
+      <li><code>MultiPipe2.js</code></li>
+      <li><code>MultiPipe2.htm</code></li>
+      <li><code>MultiPipe2Planner.js</code></li>
+    </ul>
+    The commands folder is <code>%APPDATA%\Moi\commands\</code> on Windows
+    (e.g. <code>...\AppData\Roaming\Moi\commands\</code>). On macOS it is
+    <code>&lt;MoI application support folder&gt;/commands/</code>.
+    <br>The commands folder inside the MoI install (<code>&lt;MoI install folder&gt;\commands\</code>)
+    works too, but a command kept in <code>%APPDATA%</code> survives a MoI upgrade, so it does not need
+    reinstalling.
+  </li>
+  <li>Restart MoI.</li>
+  <li>Type <code>MultiPipe2</code> on MoI's command line and press <kbd>Enter</kbd>.</li>
+</ol>
+
+<h3>Optional: a shortcut key</h3>
+<p>In MoI, open <em>Options &rarr; Shortcut keys</em>, add an entry, put the key you want in the left
+column and <code>MultiPipe2</code> in the right column. The same name works on a custom toolbar button.</p>
+
+<div class="note">MoI caches a command script the first time it runs. If you replace the files with a
+newer copy, restart MoI.</div>
+
+<p>To uninstall, delete the three files again.</p>
+
+<h2>Running the command</h2>
+
+<ol>
+  <li><strong>Select the curves.</strong> If curves are already selected when you start the command, they
+    are used straight away. Otherwise you are asked to pick them:
+    <em>&ldquo;Select curves for MultiPipe2, then press Done&rdquo;</em>. Only curves are picked up; other
+    objects in the selection are ignored.</li>
+  <li><strong>Set the options</strong> (<em>&ldquo;Set the options, then press Done&rdquo;</em>) and press
+    <em>Done</em>. Your values are remembered for the next run.</li>
+  <li><strong>Wait for the build.</strong> The panel shows <em>&ldquo;Building <span>n</span>
+    struts...&rdquo;</em> while MoI works. The count is the curve segments selected, before any duplicates
+    are dropped. MoI may not repaint during a long build; the message is there so you know it has not
+    hung.</li>
+  <li><strong>Read the summary</strong> and press <em>Done</em> to keep the pipe frame, or <em>Cancel</em>
+    to add nothing. Cancelling at any step leaves your document as it was.</li>
+</ol>
+
+<p>One <kbd>Ctrl</kbd>+<kbd>Z</kbd> removes the whole result. The command changes none of MoI's settings:
+it writes the cage to a temporary file in the system temp folder, imports it, and deletes the file again.
+Your export and mesh settings are not touched.</p>
+
+<h2>Options</h2>
+
+<table>
+  <tr><th>Option</th><th>Default</th><th>What it does</th></tr>
+  <tr>
+    <td>Radius</td><td>0.5</td>
+    <td>The strut radius, as a distance in your document units. Must be greater than zero. Struts come out
+      within about 1.5% of it (see <a href="#limits">Known limits</a>).</td>
+  </tr>
+  <tr>
+    <td>Node size</td><td>1.6</td>
+    <td>How far a joint reaches along each strut before the strut proper begins, as a multiple of
+      <em>Radius</em>. Larger gives fuller, softer joints; smaller gives tighter ones. The minimum is 1.0.
+      It is a minimum per node: where struts meet at a tight angle the joint grows beyond it (see
+      <a href="#tight">Tight angles</a>). At the default, the joints of a frame of right angles reach
+      exactly 1.6; a lower value only tightens nodes wider than 90&deg;, because a right-angled node needs
+      about 1.6 anyway.</td>
+  </tr>
+  <tr>
+    <td>Divisions</td><td>Auto (on)</td>
+    <td>How many times each strut is divided along its length.
+      <br><em>Auto</em> on: straight struts are not divided, and curved struts are divided just enough to
+      follow the curve (the curve turns no more than 15&deg; between one division and the next).
+      <br><em>Auto</em> off: type a whole number <em>N</em>, 0 or more, and every strut gets exactly
+      <em>N</em> divisions, evenly spaced. More divisions hold a strut closer to its curve and make it
+      stiffer. A closed ring is always divided at least three times. The number field is greyed out while
+      <em>Auto</em> is on.</td>
+  </tr>
+  <tr>
+    <td>Cap</td><td>On</td>
+    <td>On: every free end is closed with a rounded end, so each pipe frame is a closed solid.
+      Off: free ends are left open (see <a href="#capoff">Cap off</a>).</td>
+  </tr>
+</table>
+
+<h2>What MultiPipe2 does with your curves</h2>
+
+<ul>
+  <li><strong>Lines, polylines and smooth curves</strong> all become struts. A polyline gives one strut per
+    segment, and every corner is a node with a rounded joint. A joined curve of lines and arcs gives one
+    strut per segment, with a joint at every seam.</li>
+  <li><strong>Nodes.</strong> Curve ends closer together than the document tolerance count as meeting at
+    one node, so small drawing gaps do not break the frame. Any number of struts can meet at a node, and a
+    bend between two struts rounds off smoothly however slight it is.</li>
+  <li><strong>Pipe frames.</strong> Each connected group of curves becomes its own solid.</li>
+  <li><strong>Free ends</strong> &mdash; strut ends touching nothing &mdash; get a rounded end, or stay open,
+    per <em>Cap</em>. A rounded end finishes about 0.08 &times; <em>Radius</em> short of where the curve
+    ends.</li>
+  <li><strong>Closed curves</strong> (a circle, a closed freeform curve) become a closed tube with no node
+    and no free end.</li>
+  <li><strong>Duplicate curves</strong> &mdash; the same ends in either direction and the same shape between
+    them &mdash; are dropped and counted in the summary.</li>
+  <li><strong>Crossings</strong> &mdash; two curves passing through each other without sharing an end
+    &mdash; are left unjoined and warned about. To join them, split both curves at the crossing and run
+    the command again.</li>
+  <li><strong>A strut end landing on the side of another strut</strong> (a T without a split) is not a node:
+    the two stay separate pipe frames, with no warning. Split the other curve there to make a node.</li>
+</ul>
+
+<h2 id="tight">Tight angles</h2>
+
+<p>Where struts meet at an acute angle, a joint that reached only <em>Node size</em> along each strut would
+fold through itself. MultiPipe2 grows that node's joint automatically, just far enough to keep it clean, and
+uses the same reach on every strut at the node. The tighter the angle, the fuller the joint. At the default
+<em>Node size</em> of 1.6 the reach is about:</p>
+
+<table>
+  <tr><th>Smallest angle between struts at the node</th><th>Joint reach, as a multiple of <em>Radius</em></th></tr>
+  <tr><td>90&deg; or wider</td><td>1.6 (the value in the field)</td></tr>
+  <tr><td>70.5&deg;</td><td>2.3</td></tr>
+  <tr><td>51&deg;</td><td>4.6</td></tr>
+  <tr><td>30&deg;</td><td>6.0</td></tr>
+</table>
+
+<p>The summary says how many nodes grew and the largest reach, so you know why some joints are bigger.</p>
+
+<p><strong>Short struts.</strong> A strut shorter than the joints at its two ends need (a free end counts
+as 1 &times; <em>Radius</em>) has no room for itself: its joints overlap and the frame may intersect itself
+there. It is still built, and the summary counts it. Lengthen the strut, lower <em>Radius</em>, or lower
+<em>Node size</em> if the joint has not grown.</p>
+
+<p>Two struts leaving a node in exactly the same direction cannot be joined; that is an error, and nothing
+is built.</p>
+
+<h2 id="capoff">Cap off</h2>
+
+<p>With <em>Cap</em> off, each free end is left as a round open edge lying flat where the curve ends, at the
+strut's radius. The result is then an <strong>open surface, not a solid</strong>: booleans, shelling and 3D
+printing need <em>Cap</em> on. A frame with no free end (a closed polyline, a ring) is a closed solid either
+way. The summary says how many free ends were left open.</p>
+
+<p>The look of that open edge comes from MoI's SubD import settings (its <code>OpenBoundariesStyle</code>);
+the description above is at MoI's default.</p>
+
+<h2 id="scale">The size check and MoI's SubD import <code>ScaleFactor</code></h2>
+
+<p>MoI's SubD import has its own user settings, and a script cannot override them. One of them,
+<code>ScaleFactor</code>, scales everything the import brings in. If it is anything but 1 the pipe frame would
+come in the wrong size.</p>
+
+<p>So after the import MultiPipe2 checks the result against the cage it built: every imported object must lie
+inside the cage's bounding box, and together they must cover at least 80% of it on every axis. If not, the
+result is removed, nothing is added, and you see:</p>
+
+<p><em>&ldquo;The pipe frame came in at the wrong size or place, so it was removed. Check that MoI's SubD
+import ScaleFactor setting is 1.&rdquo;</em></p>
+
+<p>MoI keeps these settings in its <code>moi.ini</code> file, in the <code>[SubD Import]</code> section
+(on Windows <code>%APPDATA%\Moi\moi.ini</code>). Close MoI first, because it writes the file when it exits;
+then open the file in a text editor, set <code>ScaleFactor=1</code>, save, and start MoI again.</p>
+
+<h2>Messages</h2>
+
+<h3>Summary</h3>
+<p>The first line always reads, for example, <em>&ldquo;1 pipe frame, 12 struts, 8 nodes, 0 free
+ends&rdquo;</em>. Further lines appear only when they apply:</p>
+
+<table>
+  <tr><th>Line</th><th>Meaning</th></tr>
+  <tr><td><em>n</em> duplicate segments dropped.</td>
+      <td>Your selection had curves lying on top of each other; one of each was used.</td></tr>
+  <tr><td><em>n</em> crossings left unjoined; split the curves there to make a node.</td>
+      <td>Curves pass through each other mid-span. A line follows for each one:
+        <em>&ldquo;Curves cross without sharing an end near (x, y, z); left unjoined.&rdquo;</em></td></tr>
+  <tr><td><em>n</em> nodes grew for tight angles, reaching up to <em>r</em> x Radius.</td>
+      <td>See <a href="#tight">Tight angles</a>.</td></tr>
+  <tr><td><em>n</em> struts shorter than their joints; the frame may intersect itself there.</td>
+      <td>See <em>Short struts</em> under <a href="#tight">Tight angles</a>.</td></tr>
+  <tr><td>Cap is off: <em>n</em> free ends left open, so the result is an open surface, not a solid.</td>
+      <td>See <a href="#capoff">Cap off</a>.</td></tr>
+</table>
+
+<h3>Errors (nothing is added)</h3>
+<table>
+  <tr><th>Error</th><th>Cause</th></tr>
+  <tr><td>Select at least one curve.</td><td>No curve was picked.</td></tr>
+  <tr><td>Radius must be greater than zero.</td><td>The radius was zero or negative.</td></tr>
+  <tr><td>Node size must be at least 1.0.</td><td>The node size was below 1.0.</td></tr>
+  <tr><td>Divisions must be a whole number of 0 or more.</td><td><em>Auto</em> is off and the number is negative
+      or has a fraction.</td></tr>
+  <tr><td>Curve <em>n</em> has zero length.</td><td>That curve's ends are within tolerance of each other and it
+      has no shape between them.</td></tr>
+  <tr><td>Curve <em>n</em> is not a line, polyline or smooth curve; MultiPipe2 takes those.</td>
+      <td>The curve could not be read as a strut.</td></tr>
+  <tr><td>Two curves at (x, y, z) run in the same direction.</td>
+      <td>Two struts leave that node along the same line. Remove or reshape one of them.</td></tr>
+  <tr><td>The joint at (x, y, z) could not be built; its struts meet at too tight an angle.</td>
+      <td>The struts at that node are too close to parallel for a joint.</td></tr>
+  <tr><td>The SubD import produced nothing, so nothing was added.</td>
+      <td>MoI's SubD import returned no objects.</td></tr>
+  <tr><td>The pipe frame came in at the wrong size or place, so it was removed. Check that MoI's SubD import
+      ScaleFactor setting is 1.</td>
+      <td>See <a href="#scale">The size check</a>.</td></tr>
+</table>
+
+<h2 id="limits">Known limits</h2>
+
+<ul>
+  <li><strong>The radius is approximate.</strong> Each strut is subdivided from a square ring, so its
+    section is very nearly round: within about 1.5% of <em>Radius</em>, a little under it across the ring's
+    flat sides and a little over it across the corners.</li>
+  <li><strong>Rounded ends are approximate.</strong> A capped free end is a rounded dome, not an exact
+    hemisphere, and it finishes about 0.08 &times; <em>Radius</em> short of the curve's end.</li>
+  <li><strong>Curved struts run slightly inside the curve.</strong> With <em>Auto</em>, the strut's centre
+    sits inside a bend by about 1.5% of the bend's radius. More divisions bring it closer.</li>
+  <li><strong>Large frames take a while.</strong> Nearly all the time is MoI's own SubD import, and it grows
+    with the size of the frame: a pipe frame of 300 struts takes about 18 seconds.</li>
+  <li><strong>Curves are not split for you</strong>, at a crossing or where a strut end lands on the side
+    of another strut. Split them where you want a node.</li>
+  <li><strong>Very many struts at one node</strong> (more than about ten) make that joint slow to build.</li>
+  <li><strong>No wall thickness.</strong> The struts are solid, not hollow tubes.</li>
+  <li><strong>No preview.</strong> You see the result after the build, before keeping it.</li>
+  <li><strong>One radius for the whole frame.</strong> No tapering or per-strut size.</li>
+</ul>
+
+<h2 id="tested">What has been tested, and what has not</h2>
+
+<p><strong>Tested automatically, on every change:</strong> the cage for every sample scene &mdash; closed and
+consistently wound, open only at free ends with <em>Cap</em> off, divisions per strut, rings within reach of
+the curves, grown nodes, short struts, duplicates, crossings and errors &mdash; and the real SubD import inside
+MoI, checking that each sample frame comes in as closed solids of the right number, size and place, including
+a pipe frame of 300 struts.</p>
+
+<p><strong>Checked by hand only, so worth a careful first look:</strong> the command panel (option fields,
+the greyed-out <em>Divisions</em> field, prompts, the summary, <em>Done</em> and <em>Cancel</em>, values
+remembered between runs), one <kbd>Ctrl</kbd>+<kbd>Z</kbd> removing the whole result, installing and running
+the command by name, and picking curves in a live document. Nothing has been run on macOS.</p>
+
+<div class="note">Nothing is kept until you press <em>Done</em> on the summary, and one
+<kbd>Ctrl</kbd>+<kbd>Z</kbd> takes it back. Save your work first anyway, and please report whatever you
+find.</div>
+
+<h2>Built with</h2>
+
+<p><strong>Nothing has to be downloaded. MultiPipe2 uses only MoI's own scripting API and the JavaScript
+engine that ships with MoI.</strong></p>
+
+<table>
+  <tr><th>Component</th><th>What the tool uses it for</th><th>Where it comes from</th><th>License</th></tr>
+  <tr>
+    <td>MoI script API &mdash; <code>moi.geometryDatabase</code> (<code>getSelectedObjects</code>,
+      <code>getObjects</code>, <code>createObjectList</code>, <code>fileImportSubD</code>,
+      <code>removeObjects</code>, <code>tolerance</code>), curve objects (<code>evaluatePoint</code>,
+      <code>evaluateTangent</code>, <code>getSubObjects</code>, <code>getLength</code>,
+      <code>getBoundingBox</code>), object lists (<code>getStandaloneCurves</code>,
+      <code>lockSelection</code>), <code>moi.ui</code> (<code>createObjectPicker</code>,
+      <code>commandDialog</code>, <code>commandUI</code>, <code>showUI</code>, <code>hideUI</code>,
+      <code>beginUIUpdate</code>, <code>endUIUpdate</code>),
+      <code>moi.filesystem</code> (<code>getTempDir</code>, <code>openFileStream</code>,
+      <code>fileExists</code>, <code>deleteFile</code>)</td>
+    <td>Reading the selection, the curves and the document tolerance; the object picker and the command panel;
+      writing the cage to a temporary file, importing it as SubD, deleting the file; checking and removing
+      the result.</td>
+    <td>Ships with MoI &mdash; <a href="https://moi3d.com/">moi3d.com</a></td>
+    <td>Commercial (MoI is paid software; its license covers the API)</td>
+  </tr>
+  <tr>
+    <td>MoI command UI markup &mdash; <code>moi:DistanceInput</code>, <code>moi:NumericInput</code>,
+      <code>moi:CheckButton</code>, <code>moi:CommandDoneCancel</code>, <code>moi://ui/moi.css</code></td>
+    <td>The command panel: the option fields, the Done/Cancel buttons and MoI's own styling.</td>
+    <td>Ships with MoI &mdash; <a href="https://moi3d.com/">moi3d.com</a></td>
+    <td>Commercial (part of MoI)</td>
+  </tr>
+  <tr>
+    <td>JavaScript (ECMAScript 5) built-ins &mdash; <code>Math</code>, <code>Array</code>,
+      <code>Number</code>, <code>String</code>, <code>isFinite</code></td>
+    <td>All the geometry of the cage (nodes, rings, joints, tubes, caps), and formatting the summary.</td>
+    <td>MoI's built-in script engine &mdash;
+      <a href="https://ecma-international.org/publications-and-standards/standards/ecma-262/">ECMA-262</a></td>
+    <td>Open standard, free to implement and use</td>
+  </tr>
+</table>
+
+<p>MoI is the only commercial component and the only thing you have to get yourself. MultiPipe2 has no
+third-party libraries, no package manager, no runtime downloads and no external process, and it does not use
+any LGPL component.</p>
+
+<h2>License</h2>
+
+<p><strong>The code</strong> (<code>MultiPipe2.js</code>, <code>MultiPipe2.htm</code>,
+<code>MultiPipe2Planner.js</code>) is released under the <strong>GNU General Public License, version
+3</strong>. You may use it, study it, change it and pass it on, including changed versions, as long as those
+versions travel under the same license with their source. The full text ships beside the command as
+<code>LICENSE.txt</code>, and is at <a href="https://www.gnu.org/licenses/gpl-3.0.html">gnu.org/licenses/gpl-3.0.html</a>.</p>
+
+<p><strong>This manual</strong> is released under <strong>Creative Commons Attribution 4.0 International
+(CC BY 4.0)</strong>: copy it, translate it, adapt it, quote it, for any purpose, as long as you credit the
+source. Full text at <a href="https://creativecommons.org/licenses/by/4.0/">creativecommons.org/licenses/by/4.0/</a>.</p>
+
+<p>MoI itself is separate commercial software, not distributed with MultiPipe2; you need your own copy, and
+nothing here grants any right to it.</p>
+
+<p><em>This summary is not a license. Only the license texts themselves are binding &mdash;
+<a href="https://www.gnu.org/licenses/gpl-3.0.html">GPL v3</a> and
+<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</em></p>
+
+</body>
+</html>

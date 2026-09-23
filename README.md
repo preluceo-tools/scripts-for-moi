@@ -34,7 +34,7 @@ geometry commands.
 ## Contents
 
 - [Download](#download)
-- [The scripts](#the-scripts) — [MultiPipe](#multipipe)
+- [The scripts](#the-scripts) — [MultiPipe2](#multipipe2) · [MultiPipe](#multipipe)
 - [Testing status](#testing-status)
 - [Installing a script](#installing-a-script)
 - [Requirements](#requirements)
@@ -49,6 +49,7 @@ geometry commands.
 
 | Script | Download | Manual |
 |---|---|---|
+| **MultiPipe2** | **[MultiPipe2.zip](https://github.com/preluceo-tools/scripts-for-moi/raw/main/dist/MultiPipe2.zip)** (30 KB) | [Manual](https://htmlpreview.github.io/?https://github.com/preluceo-tools/scripts-for-moi/blob/main/scripts/multipipe2/MultiPipe2-manual.html) |
 | **MultiPipe** | **[MultiPipe.zip](https://github.com/preluceo-tools/scripts-for-moi/raw/main/dist/MultiPipe.zip)** (29 KB) | [Manual](https://htmlpreview.github.io/?https://github.com/preluceo-tools/scripts-for-moi/blob/main/scripts/multipipe/MultiPipe-manual.html) |
 
 The zip holds the command files, the manual and the licence. Unzip it and follow
@@ -59,6 +60,38 @@ You can also just clone the repository; the same files live under `scripts/`.
 ---
 
 ## The scripts
+
+### MultiPipe2
+
+**Turns a network of curves into one smooth pipe frame, with organic joints, in a single step.**
+
+Select any set of curves and run `MultiPipe2`. It builds a coarse cage around the curves — square
+rings along every strut and a joint at every node — and lets MoI's own SubD import subdivide it into
+a smooth solid. Struts flow into each other with no union and no fillet to fail. Your input curves
+are kept, and one <kbd>Ctrl</kbd>+<kbd>Z</kbd> takes the whole result back. It installs beside
+MultiPipe under its own name; both commands keep working.
+
+- **Smooth joints everywhere,** at any number of struts per node. Tight angles grow fuller joints
+  automatically, and the summary says how many grew and by how much.
+- **Lines, polylines and smooth curves.** Polyline corners are nodes; closed curves become closed
+  tubes. **Duplicates** are dropped and counted; **crossings** are warned about and left unjoined.
+- **One pipe frame per connected group** of curves, each a closed solid — or an open surface with
+  *Cap* off.
+- **Nothing is kept until you press Done.** The command changes none of MoI's settings.
+
+| Option | Default | What it does |
+|---|---|---|
+| Radius | 0.5 | Strut radius, as a distance in your document units. |
+| Node size | 1.6 | How far a joint reaches along each strut, as a multiple of the radius. Minimum 1.0; tight angles grow it. |
+| Divisions | Auto | *Auto* divides curved struts just enough to follow the curve. Off: every strut gets the number you type. |
+| Cap | On | Rounds off free ends, so the result is a closed solid. Off leaves them open. |
+
+**Known limits:** the radius and the rounded ends are approximate (within about 1.5%, and ends
+finish about 0.08 × radius short); crossings are not split for you; a pipe frame of 300 struts takes
+about 18 seconds; the struts are solid, not hollow; one radius applies to the whole frame.
+
+The [manual](scripts/multipipe2/MultiPipe2-manual.html) documents every option, every message and
+what happens at tight angles.
 
 ### MultiPipe
 
@@ -102,6 +135,19 @@ screen recording of a run.
 One section per script, saying what is covered and what is not. Read the one for the script you are
 about to use.
 
+### MultiPipe2
+
+**Tested automatically, on every change:** the cage for every sample scene — closed and consistently
+wound, open only at free ends with *Cap* off, divisions per strut, grown nodes, short struts,
+duplicates, crossings and errors — and the real SubD import inside a live MoI, checking that each
+sample frame comes in as closed solids of the right number, size and place, including a pipe frame
+of 300 struts.
+
+**Not covered by any automated test:** the command panel (option fields, the greyed-out *Divisions*
+field, prompts, the summary, *Done* and *Cancel*, values remembered between runs), one
+<kbd>Ctrl</kbd>+<kbd>Z</kbd> removing the whole result, installing and running it by name, picking
+curves in a live document, and macOS.
+
 ### MultiPipe
 
 A first release. Its geometry is well covered; its command panel is not, because MoI's command
@@ -134,7 +180,9 @@ into a shorter one.
 Installing a MoI command is copying files. Nothing is downloaded and nothing runs in the background.
 
 **1. Copy the script's files into your MoI commands folder.** For MultiPipe that is
-`MultiPipe.js`, `MultiPipe.htm`, `MultiPipePlanner.js` and `MultiPipeBuilder.js`.
+`MultiPipe.js`, `MultiPipe.htm`, `MultiPipePlanner.js` and `MultiPipeBuilder.js`; for MultiPipe2,
+`MultiPipe2.js`, `MultiPipe2.htm` and `MultiPipe2Planner.js`. The two sets of files have different
+names, so both commands can be installed side by side.
 
 The commands folder is:
 
@@ -195,6 +243,10 @@ is pure JavaScript with no MoI in it, and is covered by Node's own test runner:
 node --test
 ```
 
+MultiPipe2's planner — the whole cage — is pure JavaScript too, tested the same way under
+`tests/multipipe2/planner/`, and `tests/multipipe2/moi/moi-suite.js` runs the real SubD import on
+its sample scenes inside MoI.
+
 The geometry itself can only be checked inside MoI. `tests/multipipe/builder/builder-suite.js`
 builds every test scene through [mcp-bridge-for-moi](https://github.com/preluceo-tools/mcp-bridge-for-moi)
 and checks what came out, adding nothing to the document. The bridge is wired up through an
@@ -211,6 +263,7 @@ Repackaging a script's zip after a change (PowerShell):
 
 ```powershell
 Compress-Archive -Path scripts/multipipe/* -DestinationPath dist/MultiPipe.zip -Force
+Compress-Archive -Path scripts/multipipe2/* -DestinationPath dist/MultiPipe2.zip -Force
 ```
 
 > [!NOTE]
@@ -227,7 +280,8 @@ command factories — everything they need already ships with MoI.**
 | Component | What the scripts use it for | Where it comes from | License |
 |---|---|---|---|
 | [MoI3D](https://moi3d.com/) script API — `moi.geometryDatabase`, `moi.ui`, `moi.command`, `moi.vectorMath` | Reading the selection and the document tolerance, the object picker, the command panel and its Done/Cancel loop, adding the result, and point and frame math. | Ships with MoI | **Commercial** (MoI is paid software; its licence covers the API) |
-| [MoI3D](https://moi3d.com/) stock command factories — e.g. `sweep`, `sphere`, `booleanunion`, `fillet` | All the geometry: sweeping the struts, the ball joints, the union, the joint fillets and removing cap faces. | Ships with MoI | **Commercial** (part of MoI) |
+| [MoI3D](https://moi3d.com/) SubD import — `moi.geometryDatabase.fileImportSubD`, with `moi.filesystem` for its temporary file | MultiPipe2: subdividing the cage into a smooth solid. | Ships with MoI | **Commercial** (part of MoI) |
+| [MoI3D](https://moi3d.com/) stock command factories — e.g. `sweep`, `sphere`, `booleanunion`, `fillet` | MultiPipe: all the geometry: sweeping the struts, the ball joints, the union, the joint fillets and removing cap faces. | Ships with MoI | **Commercial** (part of MoI) |
 | [MoI3D](https://moi3d.com/) command UI markup — `moi:DistanceInput`, `moi:NumericInput`, `moi:CheckButton`, `moi:CommandDoneCancel` | The command panel: the option fields, the Done and Cancel buttons, and MoI's own styling. | Ships with MoI | **Commercial** (part of MoI) |
 | [JavaScript (ECMAScript 5)](https://ecma-international.org/publications-and-standards/standards/ecma-262/) built-ins — `Math`, `Date`, `Array`, `Number`, `String` | Geometry math, build timing and formatting the summary text. | MoI's built-in script engine | Open standard, free to implement and use |
 | [Node.js](https://nodejs.org/) — `node:test`, `node:assert` | Runs the planner tests. Used for development only; no part of it is shipped or needed to use a script. | nodejs.org | MIT |
