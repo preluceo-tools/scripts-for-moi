@@ -117,7 +117,7 @@ test('errors: bad options, no curves, zero length, not a line', () => {
   assert.match(run('line', { nodeSize: 0.9 }).report.errors[0], /Node size/);
   assert.match(plan([], opts).report.errors[0], /at least one curve/);
   assert.match(plan([{ kind: 'line', start: [1, 1, 1], end: [1, 1, 1] }], opts).report.errors[0], /zero length/);
-  assert.match(plan([{ kind: 'curve' }], opts).report.errors[0], /not a straight line or polyline/);
+  assert.match(plan([{ kind: 'curve' }], opts).report.errors[0], /not a line, polyline or smooth curve/);
   assert.match(plan([{ kind: 'polyline', points: [[1, 1, 1], [1, 1, 1]] }], opts).report.errors[0], /zero length/);
 });
 
@@ -253,4 +253,113 @@ test('divisions must be a whole number of 0 or more', () => {
   for (const bad of [-1, 1.5, NaN, Infinity, '3', null]) {
     assert.match(run('line', { divisions: bad }).report.errors[0], /Divisions must be a whole number of 0 or more/, String(bad));
   }
+});
+
+// Smooth curves, sampled densely by arc length as the command does. An arc in the XY plane about c, radius r, from
+// angle a0 to a1 (radians); a1 - a0 of 2 pi gives a closed ring.
+const unit3 = (a) => { const l = Math.hypot(...a); return a.map((x) => x / l); };
+function arc(c, r, a0, a1, n = 64) {
+  const at = (a) => [c[0] + r * Math.cos(a), c[1] + r * Math.sin(a), c[2]];
+  const tan = (a) => [-Math.sin(a) * Math.sign(a1 - a0), Math.cos(a) * Math.sign(a1 - a0), 0];
+  const samples = [];
+  for (let k = 0; k <= n; k++) samples.push(at(a0 + (a1 - a0) * k / n));
+  return { kind: 'smooth', samples, startTangent: tan(a0), endTangent: tan(a1) };
+}
+const smooth = (n, f) => ({ kind: 'smooth', samples: Array.from({ length: n + 1 }, (_, k) => f(k / n)) });
+// The rings of a cage in build order: centre, frame vector r (ring corner 0 minus corner 1), and tangent.
+function ringsOf(cage) {
+  const out = [];
+  for (let i = 0; i + 3 < cage.vertices.length; i += 4) {
+    const q = cage.vertices.slice(i, i + 4), c = [0, 1, 2].map((k) => (q[0][k] + q[1][k] + q[2][k] + q[3][k]) / 4);
+    const r = unit3(sub(q[0], q[1])), e2 = unit3(sub(q[0], q[3]));
+    out.push({ c, r, t: cross(r, e2) });
+  }
+  return out;
+}
+// Twist between two rings: r carried by the smallest rotation taking t to the next t, then its angle to the next r.
+function twist(a, b) {
+  const axis = cross(a.t, b.t), s = Math.hypot(...axis), cs = dot(a.t, b.t);
+  let r = a.r;
+  if (s > 1e-12) {
+    const k = axis.map((x) => x / s), kr = cross(k, r), kd = dot(k, r);
+    r = r.map((x, i) => x * cs + kr[i] * s + k[i] * kd * (1 - cs));
+  }
+  return Math.atan2(dot(cross(r, b.r), b.t), dot(r, b.r));
+}
+const deg = (x) => x * 180 / Math.PI;
+
+test('an arc strut: rings on the curve, perpendicular to it, and no twist from ring to ring', () => {
+  const cage = plan([arc([0, 0, 0], 20, 0, Math.PI / 2)], opts), r = cage.report, rs = ringsOf(cage);
+  assert.deepStrictEqual(r.errors, []);
+  assert.deepStrictEqual([r.pipeFrames, r.struts, r.nodes, r.freeEnds], [1, 1, 0, 2]);
+  assertClosedAndWound(cage, 'arc');
+  for (const g of rs) {
+    assert.ok(Math.abs(Math.hypot(g.c[0], g.c[1]) - 20) < 0.01 * R && Math.abs(g.c[2]) < 1e-9, 'ring centre off the arc');
+    assert.ok(Math.abs(dot(g.t, unit3([-g.c[1], g.c[0], 0]))) > 0.9999, 'ring not perpendicular to the arc');
+  }
+  for (const v of cage.vertices) assert.ok(Math.abs(Math.hypot(Math.hypot(v[0], v[1]) - 20, v[2]) - W * Math.SQRT2) < 0.01 * R);
+  for (let i = 0; i + 1 < rs.length; i++) assert.ok(Math.abs(deg(twist(rs[i], rs[i + 1]))) < 0.1, 'twist ' + deg(twist(rs[i], rs[i + 1])));
+  // A 3D curve too: a helix turn. The carried frame twists by no more than a hair between rings.
+  const hr = ringsOf(plan([smooth(256, (u) => [20 * Math.cos(2 * Math.PI * u), 20 * Math.sin(2 * Math.PI * u), 32 * u])], opts));
+  for (let i = 0; i + 1 < hr.length; i++) assert.ok(Math.abs(deg(twist(hr[i], hr[i + 1]))) < 0.5, 'helix twist ' + deg(twist(hr[i], hr[i + 1])));
+});
+
+test('divisions Auto: a quarter arc gets more rings than a straight strut, the turn between rings within 15 degrees', () => {
+  const quarter = plan([arc([0, 0, 0], 20, 0, Math.PI / 2)], opts), straight = plan([line([0, 0, 0], [10 * Math.PI, 0, 0])], opts);
+  const rs = ringsOf(quarter);
+  assert.ok(rs.length > ringsOf(straight).length, rs.length + ' rings');
+  for (let i = 0; i + 1 < rs.length; i++) assert.ok(deg(Math.acos(Math.min(1, dot(rs[i].t, rs[i + 1].t)))) <= 15 + 1e-6);
+  // A manual N counts as on a straight strut: two end rings, one more at each free end, plus N.
+  for (const n of [0, 2, 7]) assert.strictEqual(ringsOf(plan([arc([0, 0, 0], 20, 0, Math.PI / 2)], { ...opts, divisions: n })).length, 4 + n);
+});
+
+test('a closed smooth curve is a closed tube: no caps, no nodes, its last ring meeting its first untwisted', () => {
+  const ring = plan([arc([0, 0, 0], 10, 0, 2 * Math.PI)], opts), r = ring.report;
+  assert.deepStrictEqual(r.errors, []);
+  assert.deepStrictEqual([r.pipeFrames, r.struts, r.nodes, r.freeEnds], [1, 1, 0, 0]);
+  assertClosedAndWound(ring, 'ring');
+  assert.strictEqual(ringsOf(ring).length, 24);
+  assert.strictEqual(ringsOf(plan([arc([0, 0, 0], 10, 0, 2 * Math.PI)], { ...opts, divisions: 5 })).length, 6);
+  assert.strictEqual(ringsOf(plan([arc([0, 0, 0], 10, 0, 2 * Math.PI)], { ...opts, divisions: 0 })).length, 3);
+  // A saddle loop: the frame carried round comes back turned, and that turn is spread evenly along the loop.
+  const cage = plan([smooth(256, (u) => [20 * Math.cos(2 * Math.PI * u), 20 * Math.sin(2 * Math.PI * u), 8 * Math.cos(4 * Math.PI * u)])], opts);
+  const rs = ringsOf(cage);
+  assert.deepStrictEqual([cage.report.nodes, cage.report.freeEnds, cage.report.pipeFrames], [0, 0, 1]);
+  assertClosedAndWound(cage, 'saddle');
+  const steps = rs.map((g, i) => twist(g, rs[(i + 1) % rs.length]));
+  for (const s of steps) assert.ok(Math.abs(deg(s)) < 3, 'twist ' + deg(s));
+  // Something else at the seam makes it a node like any other.
+  const tied = plan([arc([0, 0, 0], 10, 0, 2 * Math.PI), line([10, 0, 0], [30, 0, 0])], opts);
+  assert.deepStrictEqual([tied.report.nodes, tied.report.freeEnds, tied.report.pipeFrames], [1, 1, 1]);
+  assertClosedAndWound(tied, 'ring with a tail');
+});
+
+test('smooth curves meeting lines and polylines at nodes give closed cages', () => {
+  // A D: a half circle closed by its diameter, at N = 0, 3 and Auto.
+  for (const n of ['auto', 0, 3]) {
+    const d = plan([arc([0, 0, 0], 20, 0, Math.PI), line([-20, 0, 0], [20, 0, 0])], { ...opts, divisions: n });
+    assert.deepStrictEqual([d.report.errors.length, d.report.nodes, d.report.freeEnds, d.report.pipeFrames], [0, 2, 0, 1]);
+    assertClosedAndWound(d, 'D N=' + n);
+  }
+  // A square frame: an arc bowing out of one side, a polyline round the other three, and a 3D half circle standing
+  // on the far side.
+  const frame = plan([arc([20, 0, 0], 20, Math.PI, 2 * Math.PI), { kind: 'polyline', points: [[40, 0, 0], [40, 40, 0], [0, 40, 0], [0, 0, 0]] },
+    smooth(64, (u) => [20 + 20 * Math.cos(Math.PI * u), 40, 20 * Math.sin(Math.PI * u)])], opts);
+  assert.deepStrictEqual(frame.report.errors, []);
+  assert.deepStrictEqual([frame.report.nodes, frame.report.freeEnds, frame.report.pipeFrames], [4, 0, 1]);
+  assertClosedAndWound(frame, 'frame');
+});
+
+test('smooth duplicates and crossings behave as lines do', () => {
+  const a = arc([0, 0, 0], 10, 0, Math.PI), back = { kind: 'smooth', samples: a.samples.slice().reverse() };
+  const dup = plan([a, back, a, arc([0, 0, 0], 10, 0, -Math.PI)], v1Opts).report;
+  assert.deepStrictEqual([dup.duplicatesDropped, dup.struts], [2, 2]);
+  // Two half circles crossing once, an arc crossed by a line, a ring crossed twice by a line through it.
+  const two = plan([arc([0, 0, 0], 10, 0, Math.PI), arc([10, 0, 0], 10, 0, Math.PI)], v1Opts).report;
+  assert.deepStrictEqual([two.crossings, two.pipeFrames], [1, 2]);
+  assert.match(two.warnings[0], /near \(5\.000, 8\.6\d\d, 0\.000\)/);
+  assert.strictEqual(plan([arc([0, 0, 0], 10, 0, Math.PI), line([0, -5, 0], [0, 20, 0])], v1Opts).report.crossings, 1);
+  assert.strictEqual(plan([arc([0, 0, 0], 10, 0, 2 * Math.PI), line([-20, 1, 0], [20, 1, 0])], v1Opts).report.crossings, 2);
+  // Meeting at a node, or a tip landing on the curve, is not a crossing.
+  assert.strictEqual(plan([arc([0, 0, 0], 10, 0, Math.PI), line([10, 0, 0], [10, -10, 0]), line([0, 10, 0], [0, 20, 0])], v1Opts).report.crossings, 0);
 });

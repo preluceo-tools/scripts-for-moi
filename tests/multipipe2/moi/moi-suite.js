@@ -11,7 +11,8 @@
 //
 // Every scene runs with Cap on; the 'cap off' runs repeat some with Cap off, where each free end must come in as one
 // open boundary (its naked edges join into one closed loop), and a frame without free ends must still be a closed
-// solid. The 'N=3' runs repeat some with Divisions 3 and must still come in as closed solids.
+// solid. arcframe, helix and ring are smooth curves (an interpolated half circle in a frame, a two-turn helix, a closed
+// circle, which must come in as one closed tube with no node). The 'N=3' runs repeat some with Divisions 3 and must still come in as closed solids.
 // Returns { passed, failed: [ { scene, reason } ], results: [ { scene, ms, objects } ] }.
 
 function runMoiSuite(root) {
@@ -28,14 +29,20 @@ function runMoiSuite(root) {
 
   var gd = moi.geometryDatabase, R = 2, tol = gd.tolerance;
   var tmp = moi.filesystem.getTempDir() + 'MultiPipe2-cage.obj';
-  var names = ['line', 'bend90', 'cubeframe', 'twobends', 'hairpin30', 'k5skew', 'd8', 'roofTruss', 'polyframe'], runs = [], n;
+  var names = ['line', 'bend90', 'cubeframe', 'twobends', 'hairpin30', 'k5skew', 'd8', 'roofTruss', 'polyframe', 'arcframe', 'helix', 'ring'], runs = [], n;
   for (n = 0; n < names.length; n++) runs.push({ name: names[n], cap: true });
   runs.push({ name: 'line', cap: false }, { name: 'bend90', cap: false }, { name: 'polyframe', cap: false }, { name: 'cubeframe', cap: false });
-  runs.push({ name: 'cubeframe', cap: true, divisions: 3 }, { name: 'polyframe', cap: true, divisions: 3 });
+  runs.push({ name: 'cubeframe', cap: true, divisions: 3 }, { name: 'polyframe', cap: true, divisions: 3 }, { name: 'arcframe', cap: true, divisions: 3 });
   var VM = moi.vectorMath;
+  function P(a) { return VM.createPoint(a[0], a[1], a[2]); }
   function curve(c) {
-    var f = moi.command.createFactory('polyline');
-    for (var j = 0; j < c.pts.length; j++) { f.createInput('point'); f.setInput(f.numInputs - 1, VM.createPoint(c.pts[j][0], c.pts[j][1], c.pts[j][2])); }
+    var f = moi.command.createFactory(c.type === 'interp' ? 'interpcurve' : c.type === 'circle' ? 'circle' : 'polyline');
+    if (c.type === 'circle') {
+      f.setInput(0, true); f.setInput(1, VM.createFrame(P(c.center), P([1, 0, 0]), P([0, 1, 0]))); f.setInput(3, c.radius);
+    } else for (var j = 0; j < c.pts.length; j++) {
+      f.createInput('point'); f.setInput(f.numInputs - 1, P(c.pts[j]));
+      if (c.type === 'interp') { f.createInput('bool'); f.setInput(f.numInputs - 1, false); }
+    }
     var r = f.calculate(); f.cancel();
     return r.item(0);
   }
@@ -83,6 +90,14 @@ function runMoiSuite(root) {
       out.results[n].ends = [bb[0], 30 - bb[3]];
       if (Math.abs(rad - R) > 0.02 * R) reason = 'radius ' + rad + ', expected ' + R;
       else if (bb[0] > 0.15 * R || 30 - bb[3] > 0.15 * R) reason = 'ends stop ' + bb[0] + ' and ' + (30 - bb[3]) + ' short';
+    }
+    if (!reason && name === 'ring') {
+      // A circle of radius 10 about the origin in XY: outer edge near 10 + R (the subdivided centreline runs about 1% inside the curve).
+      bb = boxes[0];
+      out.results[n].outer = (bb[3] - bb[0] + bb[4] - bb[1]) / 4;
+      out.results[n].thickness = bb[5] - bb[2];
+      if (cage.report.nodes || cage.report.freeEnds) reason = 'a ring has nodes or free ends';
+      else if (Math.abs(out.results[n].outer - 10 - R) > 0.1 * R) reason = 'outer radius ' + out.results[n].outer + ', expected ' + (10 + R);
     }
     if (objs.length) gd.removeObjects(objs);
     if (reason) out.failed.push({ scene: label, reason: reason }); else out.passed++;

@@ -1,5 +1,5 @@
 {
-  "_about": "MultiPipe2 sample scenes, same format as MultiPipe's scene file. Each scene is a list of curves; line gives its two ends, polyline its vertices.",
+  "_about": "MultiPipe2 sample scenes, same format as MultiPipe's scene file. Each scene is a list of curves; line gives its two ends, polyline its vertices, interp the points an interpolated curve runs through, circle a center and radius in the XY plane.",
   "line": [
     { "type": "line", "pts": [[0, 0, 0], [30, 0, 0]] }
   ],
@@ -80,5 +80,16 @@
     { "type": "line", "pts": [[40, 0, 0], [40, 0, 40]] },
     { "type": "line", "pts": [[40, 40, 0], [40, 40, 40]] },
     { "type": "line", "pts": [[0, 40, 0], [0, 40, 40]] }
+  ],
+  "arcframe": [
+    { "type": "interp", "pts": [[20.0, 0.0, 0], [17.3205, 10.0, 0], [10.0, 17.3205, 0], [0.0, 20.0, 0], [-10.0, 17.3205, 0], [-17.3205, 10.0, 0], [-20.0, 0.0, 0]] },
+    { "type": "line", "pts": [[-20, 0, 0], [20, 0, 0]] },
+    { "type": "polyline", "pts": [[20, 0, 0], [20, -20, 0], [-20, -20, 0], [-20, 0, 0]] }
+  ],
+  "helix": [
+    { "type": "interp", "pts": [[10.0, 0.0, 0.0], [7.0711, 7.0711, 1.25], [0.0, 10.0, 2.5], [-7.0711, 7.0711, 3.75], [-10.0, 0.0, 5.0], [-7.0711, -7.0711, 6.25], [-0.0, -10.0, 7.5], [7.0711, -7.0711, 8.75], [10.0, -0.0, 10.0], [7.0711, 7.0711, 11.25], [0.0, 10.0, 12.5], [-7.0711, 7.0711, 13.75], [-10.0, 0.0, 15.0], [-7.0711, -7.0711, 16.25], [-0.0, -10.0, 17.5], [7.0711, -7.0711, 18.75], [10.0, -0.0, 20.0]] }
+  ],
+  "ring": [
+    { "type": "circle", "center": [0, 0, 0], "radius": 10 }
   ]
 }

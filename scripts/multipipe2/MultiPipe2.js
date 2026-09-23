@@ -37,16 +37,37 @@ function show(id, text) {
 
 function stop(message) { show('SummaryPrompt', message); waitForDone(); }
 
-// Planner input: a line, or a polyline when every segment is straight. Anything else reaches the planner as an
-// unsupported kind, and it says so.
+// Planner input: a line, a polyline when every segment is straight, and otherwise one entry per segment: a line when
+// straight, a smooth curve when not, sampled at equal arc length (parameters found from a finer parameter sweep).
+// ponytail: fixed 128 samples a segment; a curve winding round many turns wants a count from its length or turn.
 function describe(curves) {
   var input = [];
   function A(p) { return [p.x, p.y, p.z]; }
+  function smooth(s) {
+    var t0 = s.domainMin, t1 = s.domainMax, M = 1024, N = 128, p = [], acc = [0], out = [], j = 0, k;
+    function at(u) { return A(s.evaluatePoint(t0 + (t1 - t0) * u / M)); }
+    for (k = 0; k <= M; k++) {
+      p.push(at(k));
+      if (k) acc.push(acc[k - 1] + Math.sqrt(Math.pow(p[k][0] - p[k - 1][0], 2) + Math.pow(p[k][1] - p[k - 1][1], 2) + Math.pow(p[k][2] - p[k - 1][2], 2)));
+    }
+    for (k = 0; k <= N; k++) {
+      var q = acc[M] * k / N;
+      while (j < M - 1 && acc[j + 1] < q) j++;
+      out.push(k === 0 ? p[0] : k === N ? p[M] : at(j + (acc[j + 1] > acc[j] ? (q - acc[j]) / (acc[j + 1] - acc[j]) : 0)));
+    }
+    return { kind: 'smooth', samples: out, startTangent: A(s.evaluateTangent(t0)), endTangent: A(s.evaluateTangent(t1)) };
+  }
   for (var i = 0; i < curves.length; i++) {
     var c = curves.item(i), segs = c.getSubObjects(), pts = [A(c.evaluatePoint(c.domainMin))], j;
     if (c.isLine) { input.push({ kind: 'line', start: pts[0], end: A(c.evaluatePoint(c.domainMax)) }); continue; }
     for (j = 0; j < segs.length && segs.item(j).isLine; j++) pts.push(A(segs.item(j).evaluatePoint(segs.item(j).domainMax)));
-    input.push(segs.length && j === segs.length ? { kind: 'polyline', points: pts } : { kind: 'curve' });
+    if (segs.length && j === segs.length) { input.push({ kind: 'polyline', points: pts }); continue; }
+    if (!segs.length) { input.push(smooth(c)); continue; }
+    for (j = 0; j < segs.length; j++) {
+      var s = segs.item(j);
+      if (s.isLine && s.getLength() <= moi.geometryDatabase.tolerance) continue;
+      input.push(s.isLine ? { kind: 'line', start: A(s.evaluatePoint(s.domainMin)), end: A(s.evaluatePoint(s.domainMax)) } : smooth(s));
+    }
   }
   return input;
 }
