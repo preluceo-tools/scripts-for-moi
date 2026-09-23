@@ -301,6 +301,28 @@ test('round joints: a strut too short for its collar skips it silently, no crash
   assertClosedAndWound(p, 'short strut round joints');
 });
 
+test('round joints: collar offset scales with growth, not a flat w (ticket 10)', () => {
+  // roofTruss's bottom-left corner in isolation: same two directions, same acute-angle growth as the scene,
+  // reproducing the collar-overshoot bug's node on its own so the reach and collar offset are unambiguous.
+  const corner = [{ kind: 'line', start: [0, 0, 0], end: [40, 0, 0] }, { kind: 'line', start: [0, 0, 0], end: [20, 0, 25] }];
+  const base = plan(corner, opts);
+  assert.strictEqual(base.report.grownNodes, 1);
+  const reach = base.report.largestReach * R, d0 = 1.6 * R;
+  assert.ok(reach - d0 > W, 'fixture must grow well past nodeSize + w or this test proves nothing');
+  const cage = plan(corner, { ...opts, roundJoints: true });
+  assert.strictEqual(cage.report.shortStruts, 0);
+  const d = (c) => Math.hypot(...sub(c, [0, 0, 0]));
+  const rings = ringsOf(cage).map((g) => d(g.c)).sort((a, b) => a - b);
+  // Innermost ring on each strut is the joint ring, at `reach`; the collar ring sits `max(w, reach - d0)`
+  // further inboard, not a flat `w` further inboard (the old, overshooting behaviour).
+  const jointRing = rings.filter((x) => Math.abs(x - reach) < 1e-6);
+  const collarRing = rings.filter((x) => Math.abs(x - (reach + Math.max(W, reach - d0))) < 1e-6);
+  const flatW = rings.filter((x) => Math.abs(x - (reach + W)) < 1e-6);
+  assert.strictEqual(jointRing.length, 2, 'one joint ring per strut, at reach');
+  assert.strictEqual(collarRing.length, 2, 'one collar ring per strut, at reach + max(w, reach - d0)');
+  assert.strictEqual(flatW.length, 0, 'collar must not sag at the old flat-w offset once the node has grown past it');
+});
+
 test('divisions must be a whole number of 0 or more', () => {
   for (const bad of [-1, 1.5, NaN, Infinity, '3', null]) {
     assert.match(run('line', { divisions: bad }).report.errors[0], /Divisions must be a whole number of 0 or more/, String(bad));

@@ -13,10 +13,11 @@
 //            evenly spaced rings that keep the curve's turn between consecutive rings within TURN) or a whole
 //            number N >= 0, the extra rings on every strut, spaced evenly between its end rings (after any
 //            free-end ring); a closed tube gets N + 1 rings, at least 3. roundJoints (default false): every node
-//            that grew (report.grownNodes) gets one extra plain ring per strut, w further inboard than the joint
-//            ring, to hold the SubD limit surface round at a pinched joint; skipped at a strut too short to fit
-//            it. allNodes (default false, no effect unless roundJoints is true): every multi-strut node gets the
-//            collar, not just grown ones.
+//            that grew (report.grownNodes) gets one extra plain ring per strut, at least w further inboard than
+//            the joint ring (more, scaling with how far the node grew past nodeSize x radius, so a heavily grown
+//            node gets a gentler taper), to hold the SubD limit surface round at a pinched joint without
+//            overshooting past it; skipped at a strut too short to fit it. allNodes (default false, no effect
+//            unless roundJoints is true): every multi-strut node gets the collar, not just grown ones.
 //   returns: { vertices: [[x,y,z], ...], faces: [[i, j, k, l], ...], box: [minX, minY, minZ, maxX, maxY, maxZ],
 //              report: { pipeFrames, struts, nodes, freeEnds, duplicatesDropped, crossings, grownNodes, largestReach,
 //                        shortStruts, errors, warnings } }
@@ -315,16 +316,19 @@ function plan(curves, options) {
       // Divisions: N extra rings spaced evenly between the innermost rings; Auto adds them only where the curve turns.
       var lo = at[free0 ? 1 : 0], hi = at[free1 ? at.length - 2 : at.length - 1], nd = auto ? spans(tr, lo, hi, 1) - 1 : divs;
       for (j = 1; j <= nd; j++) at.splice(at.length - (free1 ? 2 : 1), 0, lo + (hi - lo) * j / (nd + 1));
-      // Round joints: one extra plain ring per qualifying node end, w further inboard than the joint ring
-      // (independent of Divisions). Skipped silently if the strut has no room for it.
+      // Round joints: one extra plain ring per qualifying node end, e further inboard than the joint ring
+      // (independent of Divisions). e is at least w, but grows with how far the node's ring was pushed out
+      // past its normal d0 offset (reach - d0), so a heavily grown node (ticket 02's acute-angle offset) gets
+      // a gentler taper instead of a fixed w-wide step that Catmull-Clark overshoots past the corner.
+      // Skipped silently if the strut has no room for it.
       if (options.roundJoints) {
         var qualifies = function (nid) { return inc[nid].length > 1 && (options.allNodes || grew[nid]); };
         if (!free0 && qualifies(struts[i][0])) {
-          var c0 = at[0] + w;
+          var e0 = Math.max(w, reach[struts[i][0]] - d0), c0 = at[0] + e0;
           if (c0 < at[1] - 1e-9) at.splice(1, 0, c0);
         }
         if (!free1 && qualifies(struts[i][1])) {
-          var c1 = at[at.length - 1] - w;
+          var e1 = Math.max(w, reach[struts[i][1]] - d0), c1 = at[at.length - 1] - e1;
           if (c1 > at[at.length - 2] + 1e-9) at.splice(at.length - 1, 0, c1);
         }
       }
