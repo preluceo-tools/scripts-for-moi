@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 260" font-family="Segoe UI, system-ui, sans-serif">
+  <rect x="0" y="0" width="780" height="260" fill="#ffffff" stroke="#e1e4e8" rx="8"/>
+
+  <!-- panel 1: curves -->
+  <g transform="translate(10,10)">
+    <rect x="0" y="0" width="230" height="200" fill="#fbfbfd" stroke="#e1e4e8" rx="6"/>
+    <line x1="115" y1="30" x2="115" y2="100" stroke="#495057" stroke-width="3"/>
+    <line x1="115" y1="100" x2="55" y2="170" stroke="#495057" stroke-width="3"/>
+    <line x1="115" y1="100" x2="175" y2="170" stroke="#495057" stroke-width="3"/>
+    <circle cx="115" cy="100" r="4" fill="#495057"/>
+    <text x="115" y="235" text-anchor="middle" font-size="15" fill="#222">1. Curves you select</text>
+  </g>
+
+  <!-- arrow 1 -->
+  <path d="M 248 110 L 288 110" stroke="#8891a5" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- panel 2: cage -->
+  <g transform="translate(275,10)">
+    <rect x="0" y="0" width="230" height="200" fill="#fbfbfd" stroke="#e1e4e8" rx="6"/>
+    <!-- strut outlines as parallel rails -->
+    <line x1="105" y1="30" x2="105" y2="95" stroke="#3457d5" stroke-width="2"/>
+    <line x1="125" y1="30" x2="125" y2="95" stroke="#3457d5" stroke-width="2"/>
+    <line x1="115" y1="100" x2="58" y2="168" stroke="#3457d5" stroke-width="2" transform="translate(-9,0)"/>
+    <line x1="115" y1="100" x2="58" y2="168" stroke="#3457d5" stroke-width="2" transform="translate(9,0)"/>
+    <line x1="115" y1="100" x2="172" y2="168" stroke="#3457d5" stroke-width="2" transform="translate(-9,0)"/>
+    <line x1="115" y1="100" x2="172" y2="168" stroke="#3457d5" stroke-width="2" transform="translate(9,0)"/>
+    <!-- ring ticks -->
+    <line x1="96" y1="55" x2="134" y2="55" stroke="#3457d5" stroke-width="1.5"/>
+    <line x1="96" y1="78" x2="134" y2="78" stroke="#3457d5" stroke-width="1.5"/>
+    <!-- node hull -->
+    <polygon points="106,90 124,90 145,120 88,150 152,150 83,120" fill="#eef1fb" stroke="#3457d5" stroke-width="2"/>
+    <text x="115" y="235" text-anchor="middle" font-size="15" fill="#222">2. Cage MultiPipe2 builds</text>
+  </g>
+
+  <!-- arrow 2 -->
+  <path d="M 513 110 L 553 110" stroke="#8891a5" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- panel 3: smooth solid -->
+  <g transform="translate(540,10)">
+    <rect x="0" y="0" width="230" height="200" fill="#fbfbfd" stroke="#e1e4e8" rx="6"/>
+    <line x1="115" y1="30" x2="115" y2="100" stroke="#2f9e44" stroke-width="22" stroke-linecap="round"/>
+    <line x1="115" y1="100" x2="55" y2="170" stroke="#2f9e44" stroke-width="22" stroke-linecap="round"/>
+    <line x1="115" y1="100" x2="175" y2="170" stroke="#2f9e44" stroke-width="22" stroke-linecap="round"/>
+    <circle cx="115" cy="100" r="17" fill="#2f9e44"/>
+    <text x="115" y="235" text-anchor="middle" font-size="15" fill="#222">3. Smooth solid after import</text>
+  </g>
+
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#8891a5"/>
+    </marker>
+  </defs>
+</svg>

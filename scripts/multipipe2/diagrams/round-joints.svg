@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 280" font-family="Segoe UI, system-ui, sans-serif">
+  <rect x="0" y="0" width="780" height="280" fill="#ffffff" stroke="#e1e4e8" rx="8"/>
+
+  <!-- panel A: off, flat hull can pinch -->
+  <g transform="translate(10,10)">
+    <rect x="0" y="0" width="375" height="220" fill="#fbfbfd" stroke="#e1e4e8" rx="6"/>
+    <g transform="translate(187,120)">
+      <!-- 5 struts -->
+      <g stroke="#495057" stroke-width="3">
+        <line x1="0" y1="0" x2="0" y2="-92"/>
+        <line x1="0" y1="0" x2="87" y2="-28"/>
+        <line x1="0" y1="0" x2="54" y2="74"/>
+        <line x1="0" y1="0" x2="-54" y2="74"/>
+        <line x1="0" y1="0" x2="-87" y2="-28"/>
+      </g>
+      <!-- flat hull skipping the true centre: pinches inward -->
+      <polygon points="0,-92 87,-28 54,74 -54,74 -87,-28"
+                fill="#fde8de" stroke="#e8590c" stroke-width="2.5"/>
+      <circle cx="0" cy="0" r="5" fill="#e8590c"/>
+      <circle cx="0" cy="-4" r="26" fill="none" stroke="#e8590c" stroke-width="1.5" stroke-dasharray="3,3"/>
+      <text x="0" y="-108" text-anchor="middle" font-size="20" fill="#e8590c">&#9888;</text>
+    </g>
+    <text x="187" y="30" text-anchor="middle" font-size="15" fill="#222">Round joints: Off</text>
+    <text x="187" y="255" text-anchor="middle" font-size="14" fill="#e8590c">wide unsupported gap can pinch inward</text>
+  </g>
+
+  <!-- panel B: on, apex-fan miter point -->
+  <g transform="translate(395,10)">
+    <rect x="0" y="0" width="375" height="220" fill="#fbfbfd" stroke="#e1e4e8" rx="6"/>
+    <g transform="translate(187,120)">
+      <!-- fan triangles filled faint -->
+      <g fill="#e3f6e8" stroke="none">
+        <polygon points="0,0 0,-92 87,-28"/>
+        <polygon points="0,0 87,-28 54,74"/>
+        <polygon points="0,0 54,74 -54,74"/>
+        <polygon points="0,0 -54,74 -87,-28"/>
+        <polygon points="0,0 -87,-28 0,-92"/>
+      </g>
+      <!-- 5 struts, all converging cleanly to the apex -->
+      <g stroke="#2f9e44" stroke-width="3">
+        <line x1="0" y1="0" x2="0" y2="-92"/>
+        <line x1="0" y1="0" x2="87" y2="-28"/>
+        <line x1="0" y1="0" x2="54" y2="74"/>
+        <line x1="0" y1="0" x2="-54" y2="74"/>
+        <line x1="0" y1="0" x2="-87" y2="-28"/>
+      </g>
+      <circle cx="0" cy="0" r="6" fill="#2f9e44"/>
+    </g>
+    <text x="187" y="30" text-anchor="middle" font-size="15" fill="#222">Round joints: On</text>
+    <text x="187" y="255" text-anchor="middle" font-size="14" fill="#2f9e44">one apex vertex, crisp miter point</text>
+  </g>
+</svg>

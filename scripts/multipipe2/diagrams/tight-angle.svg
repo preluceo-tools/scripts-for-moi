@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 260" font-family="Segoe UI, system-ui, sans-serif">
+  <rect x="0" y="0" width="780" height="260" fill="#ffffff" stroke="#e1e4e8" rx="8"/>
+
+  <!-- panel A: wide angle -->
+  <g transform="translate(10,10)">
+    <rect x="0" y="0" width="375" height="200" fill="#fbfbfd" stroke="#e1e4e8" rx="6"/>
+    <g transform="translate(187,175)">
+      <line x1="0" y1="0" x2="-115" y2="-125" stroke="#495057" stroke-width="3"/>
+      <line x1="0" y1="0" x2="115" y2="-125" stroke="#495057" stroke-width="3"/>
+      <path d="M -30 -33 A 45 45 0 0 1 30 -33" fill="none" stroke="#8891a5" stroke-width="1.5"/>
+      <text x="0" y="-52" text-anchor="middle" font-size="13" fill="#555">100&#176;</text>
+      <!-- joint reach highlight, short -->
+      <line x1="0" y1="0" x2="-27" y2="-29" stroke="#3457d5" stroke-width="9" stroke-linecap="round"/>
+      <line x1="0" y1="0" x2="27" y2="-29" stroke="#3457d5" stroke-width="9" stroke-linecap="round"/>
+      <circle cx="0" cy="0" r="8" fill="#3457d5"/>
+    </g>
+    <text x="187" y="30" text-anchor="middle" font-size="15" fill="#222">90&#176; or wider</text>
+    <text x="187" y="235" text-anchor="middle" font-size="14" fill="#3457d5">reach 1.6 &#215; Radius</text>
+  </g>
+
+  <!-- panel B: tight angle -->
+  <g transform="translate(395,10)">
+    <rect x="0" y="0" width="375" height="200" fill="#fbfbfd" stroke="#e1e4e8" rx="6"/>
+    <g transform="translate(187,175)">
+      <line x1="0" y1="0" x2="-38" y2="-150" stroke="#495057" stroke-width="3"/>
+      <line x1="0" y1="0" x2="38" y2="-150" stroke="#495057" stroke-width="3"/>
+      <path d="M -14 -55 A 56 56 0 0 1 14 -55" fill="none" stroke="#8891a5" stroke-width="1.5"/>
+      <text x="0" y="-72" text-anchor="middle" font-size="13" fill="#555">30&#176;</text>
+      <!-- joint reach highlight, long -->
+      <line x1="0" y1="0" x2="-30" y2="-118" stroke="#e8590c" stroke-width="9" stroke-linecap="round"/>
+      <line x1="0" y1="0" x2="30" y2="-118" stroke="#e8590c" stroke-width="9" stroke-linecap="round"/>
+      <circle cx="0" cy="0" r="8" fill="#e8590c"/>
+    </g>
+    <text x="187" y="30" text-anchor="middle" font-size="15" fill="#222">30&#176; (tight)</text>
+    <text x="187" y="235" text-anchor="middle" font-size="14" fill="#e8590c">reach 6.0 &#215; Radius</text>
+  </g>
+</svg>

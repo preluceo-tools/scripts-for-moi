@@ -17,18 +17,24 @@
   th { background: #f0f0f0; }
   .lead { color: #555; font-size: 1.05em; }
   .note { background: #f7f7ef; border-left: 4px solid #c9c07a; padding: .7em 1em; margin: 1em 0; }
+  img { max-width: 100%; height: auto; display: block; margin: 1em 0; }
 </style>
 </head>
 <body>
 
 <h1>MultiPipe2</h1>
 <p class="lead">Turn a network of curves into a smooth pipe frame, inside MoI, in a single step.</p>
+<p>This is the full reference. For a shorter, more visual overview &mdash; and how MultiPipe2
+compares to Rhino's own native <code>MultiPipe</code> command &mdash; see the
+<a href="README.md">README</a>.</p>
 
 <p>MultiPipe2 builds a coarse <strong>cage</strong> around the curves you select &mdash; square rings along
 every strut, and a joint at every node that bridges the rings of the struts meeting there &mdash; and lets
 MoI's own SubD import subdivide it into a smooth NURBS solid. Struts flow into each other through rounded
 joints, with no union and no fillet. You get one pipe frame per connected group of curves. Your input
 curves are kept, and the whole result is a single undo step.</p>
+
+<img src="diagrams/pipeline.svg" alt="Curves in, a coarse cage built around them, a smooth SubD solid out" width="100%">
 
 <h2>Install</h2>
 
@@ -163,6 +169,8 @@ fold through itself. MultiPipe2 grows that node's joint automatically, just far 
 uses the same reach on every strut at the node. The tighter the angle, the fuller the joint. At the default
 <em>Node size</em> of 1.6 the reach is about:</p>
 
+<img src="diagrams/tight-angle.svg" alt="A wide angle keeps the default joint reach; a tight angle grows it several times over" width="100%">
+
 <table>
   <tr><th>Smallest angle between struts at the node</th><th>Joint reach, as a multiple of <em>Radius</em></th></tr>
   <tr><td>90&deg; or wider</td><td>1.6 (the value in the field)</td></tr>
@@ -188,6 +196,8 @@ it round. Turn on <em>Round joints</em> to add one extra ring just inboard of th
 offer that node's own point into its joint as an extra corner &mdash; where the geometry allows it, the joint
 comes to a crisp, symmetric miter point there rather than a smooth fillet or a pinch; where it does not, the
 joint is left as it was. Both options are off by default and remembered between runs.</p>
+
+<img src="diagrams/round-joints.svg" alt="Off, the flat hull leaves a gap around the node that can pinch; on, an apex vertex gives a clean miter point" width="100%">
 
 <h2 id="capoff">Cap off</h2>
 
