@@ -10,6 +10,14 @@
 			<div id="SummaryPrompt" class="hiddencommandui">Press Done to keep it, or Cancel to add nothing</div>
 		</div>
 		<table id="Options" class="hiddencommandui">
+			<!-- Each option's label is its own text, not a textid: MoI's string table has no entry for these names,
+			     and a missing textid could come out blank. Cage surfaces and Cage solid give the curves for now. -->
+			<tr><td>Output:</td><td><moi:Select id="output">
+					<moi:Option value="frame">Pipe frame</moi:Option>
+					<moi:Option value="curves">Cage curves</moi:Option>
+					<moi:Option value="surfaces">Cage surfaces</moi:Option>
+					<moi:Option value="solid">Cage solid</moi:Option>
+				</moi:Select></td></tr>
 			<tr><td>Radius:</td><td><moi:DistanceInput id="radius" default="0.5" /></td></tr>
 			<tr><td>Node size:</td><td><moi:NumericInput id="nodesize" default="1.6" /></td></tr>
 			<!-- The number applies only with Auto off; MultiPipe2.js sets the same state when the options show. -->

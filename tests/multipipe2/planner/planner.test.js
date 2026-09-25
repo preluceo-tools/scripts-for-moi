@@ -400,9 +400,11 @@ test('round joints: a node that hard-fails today\'s hull-plane test still fails 
     { kind: 'line', start: [0, 0, 0], end: [13.736243783851254, -7.403452447528847, 104.31721061717117] },
   ];
   const base = plan(curves, opts);
-  assert.match(base.report.errors[0], /too tight an angle/);
+  // A joint failure is reported in jointErrors, not errors: it is fatal only to the pipe frame output (ticket 12).
+  assert.deepStrictEqual(base.report.errors, []);
+  assert.match(base.report.jointErrors[0], /too tight an angle/);
   const cage = plan(curves, { ...opts, roundJoints: true, allNodes: true });
-  assert.deepStrictEqual(cage.report.errors, base.report.errors);
+  assert.deepStrictEqual(cage.report.jointErrors, base.report.jointErrors);
   assert.strictEqual(cage.report.roundedNodes, 0);
   assert.strictEqual(cage.report.roundedNodeFallbacks, 1);
 });

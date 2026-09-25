@@ -24,11 +24,13 @@
 //            fan would self-intersect or invert, counted in report.roundedNodes / report.roundedNodeFallbacks.
 //   returns: { vertices: [[x,y,z], ...], faces: [[i, j, k, l], ...], box: [minX, minY, minZ, maxX, maxY, maxZ],
 //              report: { pipeFrames, struts, nodes, freeEnds, duplicatesDropped, crossings, grownNodes, largestReach,
-//                        shortStruts, roundedNodes, roundedNodeFallbacks, errors, warnings } }
+//                        shortStruts, roundedNodes, roundedNodeFallbacks, errors, jointErrors, warnings } }
 //   Endpoints within tolerance are one node.
 //   duplicatesDropped: segments dropped because an earlier one has the same ends (either direction) and shape.
 //   crossings: strut pairs that pass within tolerance of each other away from their ends; left unjoined, one
 //              warning each.
+//   jointErrors: joints that could not be built, one message each. Kept apart from errors because they are fatal
+//                only to the pipe frame; a cage output draws the rest of the cage and reports them as warnings.
 //   largestReach: the largest ring offset at a grown node, as a factor of radius (0 when none grew).
 //   shortStruts: struts shorter than the ring offsets at their two ends (still built).
 //   The cage: a square ring (half-width radius / 0.93) at the node's ring offset (along the curve) from every node
@@ -183,7 +185,7 @@ function plan(curves, options) {
   var R = options.radius, tol = options.tolerance, cap = options.cap !== false, i, j, k;
   var V = [], F = [];
   var report = { pipeFrames: 0, struts: 0, nodes: 0, freeEnds: 0, duplicatesDropped: 0, crossings: 0, grownNodes: 0, largestReach: 0, shortStruts: 0,
-    roundedNodes: 0, roundedNodeFallbacks: 0, errors: [], warnings: [] };
+    roundedNodes: 0, roundedNodeFallbacks: 0, errors: [], jointErrors: [], warnings: [] };
   var out = { vertices: V, faces: F, box: null, report: report };
   if (!(R > 0)) report.errors.push('Radius must be greater than zero.');
   if (!(options.nodeSize >= 1)) report.errors.push('Node size must be at least 1.0.');
@@ -436,7 +438,7 @@ function plan(curves, options) {
         F.push(facets[j].map(function (m) { return ids[m]; }));
       }
       for (j = 0; j < here.length; j++) {
-        if (!found[j]) report.errors.push('The joint at ' + where(points[ni]) + ' could not be built; its struts meet at too tight an angle.');
+        if (!found[j]) report.jointErrors.push('The joint at ' + where(points[ni]) + ' could not be built; its struts meet at too tight an angle.');
       }
     }
   }

@@ -72,22 +72,46 @@ function describe(curves) {
   return input;
 }
 
-// Writes the cage to a temp OBJ, imports it as SubD and deletes the file whatever happens.
-// fileImportSubD adds to the document and returns nothing, so the new objects are found by id.
-function importCage(cage) {
-  var gd = moi.geometryDatabase, fs = moi.filesystem, path = fs.getTempDir() + 'MultiPipe2-cage.obj';
-  var before = {}, all = gd.getObjects(), added = gd.createObjectList(), i;
+// Runs fn, which adds objects to the document, and returns what it added. Both fileImportSubD and a factory's
+// commit() add objects while returning nothing useful, so the new ones are found by id.
+function addedBy(fn) {
+  var gd = moi.geometryDatabase, before = {}, all = gd.getObjects(), added = gd.createObjectList(), i;
   for (i = 0; i < all.length; i++) before[all.item(i).id] = true;
-  try {
-    var lines = objLines(cage), s = fs.openFileStream(path, 'w');
-    try { for (i = 0; i < lines.length; i++) s.writeLine(lines[i]); } finally { s.close(); }
-    gd.fileImportSubD(path);
-  } finally {
-    if (fs.fileExists(path)) fs.deleteFile(path);
-  }
+  fn();
   all = gd.getObjects();
   for (i = 0; i < all.length; i++) if (!before[all.item(i).id]) added.addObject(all.item(i));
   return added;
+}
+
+// Writes the cage to a temp OBJ, imports it as SubD and deletes the file whatever happens.
+function importCage(cage) {
+  var fs = moi.filesystem, path = fs.getTempDir() + 'MultiPipe2-cage.obj';
+  return addedBy(function () {
+    try {
+      var lines = objLines(cage), s = fs.openFileStream(path, 'w'), i;
+      try { for (i = 0; i < lines.length; i++) s.writeLine(lines[i]); } finally { s.close(); }
+      moi.geometryDatabase.fileImportSubD(path);
+    } finally {
+      if (fs.fileExists(path)) fs.deleteFile(path);
+    }
+  });
+}
+
+// One closed curve per cage face, of any vertex count, built straight from the planner's data: no file is written.
+// The polyline factory closes the curve when its last point repeats its first.
+function buildCageCurves(cage) {
+  return addedBy(function () {
+    var VM = moi.vectorMath, i, j;
+    for (i = 0; i < cage.faces.length; i++) {
+      var face = cage.faces[i], f = moi.command.createFactory('polyline');
+      for (j = 0; j <= face.length; j++) {
+        var v = cage.vertices[face[j % face.length]];
+        f.createInput('point');
+        f.setInput(f.numInputs - 1, VM.createPoint(v[0], v[1], v[2]));
+      }
+      f.commit();
+    }
+  });
 }
 
 function plural(n, word) { return n + ' ' + word + (n == 1 ? '' : 's'); }
@@ -103,27 +127,39 @@ function MultiPipe2() {
   if (!waitForDone()) return;
 
   // The count before planning is the input segments; duplicates the planner drops are still in it.
-  var ui = moi.ui.commandUI, cap = ui.cap.value, input = describe(curves), segments = 0, i;
+  var ui = moi.ui.commandUI, cap = ui.cap.value, output = ui.output.value, input = describe(curves), segments = 0, i;
   for (i = 0; i < input.length; i++) segments += input[i].kind == 'polyline' ? input[i].points.length - 1 : 1;
   show('BuildingPrompt', 'Building ' + plural(segments, 'strut') + '...');
   var cage = plan(input, { radius: ui.radius.value, nodeSize: ui.nodesize.value,
     divisions: ui.auto.value ? 'auto' : ui.divisions.value, cap: cap,
     roundJoints: ui.roundJoints.value, allNodes: ui.allNodes.value,
     tolerance: moi.geometryDatabase.tolerance });
-  var r = cage.report;
-  if (r.errors.length) { stop(r.errors.join('<br>')); return; }
+  var r = cage.report, frame = output == 'frame', objs, notes = '';
+  // A joint that could not be built stops the pipe frame (the SubD import rejects such a cage); a cage output
+  // draws the rest of the cage and reports it.
+  var errors = frame ? r.errors.concat(r.jointErrors) : r.errors;
+  if (errors.length) { stop(errors.join('<br>')); return; }
 
-  var objs = importCage(cage), boxes = [];
-  if (!objs.length) { stop('The SubD import produced nothing, so nothing was added.'); return; }
-  for (i = 0; i < objs.length; i++) {
-    var b = objs.item(i).getBoundingBox();
-    boxes.push([b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z]);
+  if (frame) {
+    objs = importCage(cage);
+    var boxes = [];
+    if (!objs.length) { stop('The SubD import produced nothing, so nothing was added.'); return; }
+    for (i = 0; i < objs.length; i++) {
+      var b = objs.item(i).getBoundingBox();
+      boxes.push([b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z]);
+    }
+    var bad = checkImport(cage.box, boxes, moi.geometryDatabase.tolerance);
+    if (bad) { moi.geometryDatabase.removeObjects(objs); stop(bad); return; }
+  } else {
+    // Cage surfaces and Cage solid are not built yet; they give the curves so no value in the option does nothing.
+    objs = buildCageCurves(cage);
+    notes = plural(objs.length, 'cage curve') + ' for ' + plural(cage.faces.length, 'cage face') + '.<br>' +
+      (output == 'curves' ? '' : 'Cage surfaces and Cage solid are not available yet, so the cage curves were added instead.<br>') +
+      (r.jointErrors.length ? r.jointErrors.join('<br>') + '<br>' : '');
   }
-  var bad = checkImport(cage.box, boxes, moi.geometryDatabase.tolerance);
-  if (bad) { moi.geometryDatabase.removeObjects(objs); stop(bad); return; }
   for (i = 0; i < objs.length; i++) objs.item(i).name = '';
 
-  show('SummaryPrompt', plural(r.pipeFrames, 'pipe frame') + ', ' + plural(r.struts, 'strut') + ', ' +
+  show('SummaryPrompt', notes + plural(r.pipeFrames, 'pipe frame') + ', ' + plural(r.struts, 'strut') + ', ' +
     plural(r.nodes, 'node') + ', ' + plural(r.freeEnds, 'free end') +
     (r.duplicatesDropped ? '<br>' + plural(r.duplicatesDropped, 'duplicate segment') + ' dropped.' : '') +
     (r.crossings ? '<br>' + plural(r.crossings, 'crossing') + ' left unjoined; split the curves there to make a node.<br>' +

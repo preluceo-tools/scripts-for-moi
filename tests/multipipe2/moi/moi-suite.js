@@ -18,6 +18,9 @@
 // Last comes 'lattice', a generated 4 x 4 x 4 grid (300 struts, 125 nodes, Radius 0.5): one closed solid, with its
 // planner (describe plus plan), write and import times recorded separately (write is objLines plus writing the OBJ;
 // import is importCage less that write).
+// Then the cage-curves runs (ticket 12): the same planner data built as one closed curve per cage face with the
+// command's own buildCageCurves(), checked for count, closedness and that no file is written, on scenes covering
+// faces of 3, 4, 6, 8 and 10 vertices plus a 2-degree strut pair whose joint cannot be built.
 // Returns { passed, failed: [ { scene, reason } ], results: [ { scene, ms, objects } ] }.
 //
 // The whole run can outlast the bridge's 30 s call timeout. The timed-out call keeps running inside MoI and leaves
@@ -80,7 +83,8 @@ function runMoiSuite(root) {
     var input = describe(curves);
     var cage = plan(input, { radius: R, nodeSize: 1.6, divisions: runs[n].divisions, cap: runs[n].cap, tolerance: tol,
       roundJoints: runs[n].roundJoints, allNodes: runs[n].allNodes }), t0 = new Date().getTime();
-    var objs = cage.report.errors.length ? gd.createObjectList() : importCage(cage), boxes = [], nakedLoops = 0;
+    var fatal = cage.report.errors.concat(cage.report.jointErrors);
+    var objs = fatal.length ? gd.createObjectList() : importCage(cage), boxes = [], nakedLoops = 0;
     out.results.push({ scene: label, ms: new Date().getTime() - t0, objects: objs.length });
     for (i = 0; i < objs.length; i++) {
       var b = objs.item(i).getBoundingBox();
@@ -93,7 +97,7 @@ function runMoiSuite(root) {
       objs.item(i).name = '';
       if (objs.item(i).name) reason = 'name not cleared';
     }
-    if (cage.report.errors.length) reason = cage.report.errors.join('; ');
+    if (fatal.length) reason = fatal.join('; ');
     else if (name === 'polyframe' && (input[0].kind !== 'polyline' || objs.length !== 1)) reason = 'polyline not one pipe frame';
     else if (objs.length !== cage.report.pipeFrames) reason = 'expected ' + cage.report.pipeFrames + ' pipe frames, got ' + objs.length;
     else if (moi.filesystem.fileExists(tmp)) reason = 'temp file left behind';
@@ -118,6 +122,38 @@ function runMoiSuite(root) {
     if (objs.length) gd.removeObjects(objs);
     if (reason) out.failed.push({ scene: label, reason: reason }); else out.passed++;
   }
+  // Cage curves output (ticket 12): one closed curve per cage face, whatever the face size, nothing written to
+  // disk, and a joint that could not be built is a warning rather than a stop. cubeframe has 3- and 4-vertex
+  // faces, roofTruss 4, 6 and 10, x4planar 4 and 8; 'tightpair' is two struts 2 degrees apart, which is the
+  // angle at which the joint actually fails (5 degrees still builds here, measured).
+  var cageRuns = ['cubeframe', 'roofTruss', 'x4planar', 'tightpair'], A2 = 2 * Math.PI / 180;
+  for (n = 0; n < cageRuns.length; n++) {
+    var cname = cageRuns[n], cspec = cname === 'tightpair'
+      ? [{ type: 'line', pts: [[0, 0, 0], [100, 0, 0]] },
+         { type: 'line', pts: [[0, 0, 0], [100 * Math.cos(A2), 100 * Math.sin(A2), 0]] }]
+      : scenes[cname];
+    var why2 = '', sizes = {}, key;
+    curves = gd.createObjectList();
+    for (i = 0; i < cspec.length; i++) curves.addObject(curve(cspec[i]));
+    cage = plan(describe(curves), { radius: R, nodeSize: 1.6, cap: true, tolerance: tol });
+    for (i = 0; i < cage.faces.length; i++) { key = cage.faces[i].length; sizes[key] = (sizes[key] || 0) + 1; }
+    var t1 = new Date().getTime();
+    objs = cage.report.errors.length ? gd.createObjectList() : buildCageCurves(cage);
+    var res = { scene: cname + ' (cage curves)', ms: new Date().getTime() - t1, objects: objs.length, faceSizes: sizes };
+    out.results.push(res);
+    for (i = 0; i < objs.length; i++) {
+      if (!objs.item(i).isCurve || !objs.item(i).isClosed) why2 = 'object ' + i + ' is not a closed curve';
+      objs.item(i).name = '';
+    }
+    if (cage.report.errors.length) why2 = cage.report.errors.join('; ');
+    else if (objs.length !== cage.faces.length) why2 = objs.length + ' curves, expected ' + cage.faces.length;
+    else if (moi.filesystem.fileExists(tmp)) why2 = 'temp file left behind';
+    else if (cname === 'tightpair' && !cage.report.jointErrors.length) why2 = 'the 2 degree pair built its joint, so it does not test the warning';
+    else if (cname !== 'tightpair' && cage.report.jointErrors.length) why2 = cage.report.jointErrors.join('; ');
+    if (objs.length) gd.removeObjects(objs);
+    if (why2) out.failed.push({ scene: cname + ' (cage curves)', reason: why2 }); else out.passed++;
+  }
+
   // Large frame: time each stage; the import must give one closed solid.
   var L = [], g = 4, S = 10, a, c, d;
   for (a = 0; a <= g; a++) for (c = 0; c <= g; c++) for (d = 0; d <= g; d++) {
@@ -131,7 +167,7 @@ function runMoiSuite(root) {
   cage = plan(describe(curves), { radius: 0.5, nodeSize: 1.6, cap: true, tolerance: tol });
   lat.planMs = new Date().getTime() - t;
   out.results.push(lat);
-  if (cage.report.errors.length) why = cage.report.errors.join('; ');
+  if (cage.report.errors.concat(cage.report.jointErrors).length) why = cage.report.errors.concat(cage.report.jointErrors).join('; ');
   else if (cage.report.struts !== 300 || cage.report.nodes !== 125) why = cage.report.struts + ' struts and ' + cage.report.nodes + ' nodes, expected 300 and 125';
   else {
     var wpath = moi.filesystem.getTempDir() + 'MultiPipe2-write-timing.obj', lines, ws;
