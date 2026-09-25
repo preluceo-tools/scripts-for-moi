@@ -120,6 +120,21 @@ function buildCageCurves(cage) {
   });
 }
 
+// One surface per cage face, from the cage curves. planarsrf is called once over all of them: one call
+// per face costs about 23x more, and the per-call cost grows as the document fills. Its commit() returns a
+// falsy value while succeeding, so what it made is counted by diffing the document, as addedBy does. The curves
+// are construction geometry and planarsrf does not consume them, so they are removed here.
+function buildCageSurfaces(cage) {
+  var curves = buildCageCurves(cage);
+  var surfaces = addedBy(function () {
+    var f = moi.command.createFactory('planarsrf');
+    f.setInput(0, curves);
+    f.commit();
+  });
+  moi.geometryDatabase.removeObjects(curves);
+  return surfaces;
+}
+
 function plural(n, word) { return n + ' ' + word + (n == 1 ? '' : 's'); }
 
 // The input curves meeting a joint that could not be built: named and left selected so the user can see which
@@ -172,11 +187,14 @@ function pass(curves) {
     }
     var bad = checkImport(build.box, boxes, moi.geometryDatabase.tolerance);
     if (bad) { moi.geometryDatabase.removeObjects(objs); return stop(bad); }
+  } else if (output == 'surfaces') {
+    objs = buildCageSurfaces(cage);
+    notes = plural(objs.length, 'cage surface') + ' for ' + plural(cage.faces.length, 'cage face') + '.<br>';
   } else {
-    // Cage surfaces and Cage solid are not built yet; they give the curves so no value in the option does nothing.
+    // Cage solid is not built yet; it gives the curves so no value in the option does nothing.
     objs = buildCageCurves(cage);
     notes = plural(objs.length, 'cage curve') + ' for ' + plural(cage.faces.length, 'cage face') + '.<br>' +
-      (output == 'curves' ? '' : 'Cage surfaces and Cage solid are not available yet, so the cage curves were added instead.<br>');
+      (output == 'curves' ? '' : 'Cage solid is not available yet, so the cage curves were added instead.<br>');
   }
   for (i = 0; i < objs.length; i++) objs.item(i).name = '';
 
