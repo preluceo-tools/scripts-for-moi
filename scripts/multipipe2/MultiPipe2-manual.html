@@ -109,7 +109,10 @@ Your export and mesh settings are not touched.</p>
       edit, and the output to use when you want to change the cage, connect pipes of different radii, export it
       and run MoI's own <em>ImportSubD</em> on it yourself. It is faster than <em>Pipe frame</em> at any size
       (on a 300-strut frame, under three seconds against about seventeen).
-      <br><em>Cage solid</em> is not available yet; choosing it gives the cage curves.</td>
+      <br><em>Cage solid</em>: the same cage surfaces joined into one object per pipe frame &mdash; the faceted,
+      low-polygon counterpart of the pipe frame, closed and solid when <em>Cap</em> is on. Still faster than
+      <em>Pipe frame</em> (on a 300-strut frame, around ten seconds against about seventeen), though the join
+      makes it the slowest of the three cage outputs.</td>
   </tr>
   <tr>
     <td>Radius</td><td>0.5</td>
@@ -263,14 +266,15 @@ ends&rdquo;</em>. Further lines appear only when they apply:</p>
       faces.</td>
       <td>A cage output only: how many curves or surfaces were added, and how many faces the cage has. The two
         numbers match.</td></tr>
+  <tr><td><em>n</em> cage solids from <em>n</em> cage faces.</td>
+      <td><em>Cage solid</em> only: how many objects were left &mdash; one per pipe frame &mdash; and how many
+        faces went into them.</td></tr>
   <tr><td><em>n</em> joints could not be built; <em>n</em> pipe frames dropped. The curves there are named
       MultiPipe2 failed and selected.</td>
       <td>Those joints meet at too tight an angle. In <em>Pipe frame</em> each pipe frame holding one is left out
         and the rest are built; in a cage output nothing is dropped and the whole cage is drawn. Either way the
         input curves meeting a failed joint are renamed and left selected, so you can see them in the viewport
         and fix them. The dropped count is not shown for a cage output.</td></tr>
-  <tr><td>Cage solid is not available yet, so the cage curves were added instead.</td>
-      <td>You chose an output that is not built yet.</td></tr>
   <tr><td><em>n</em> duplicate segments dropped.</td>
       <td>Your selection had curves lying on top of each other; one of each was used.</td></tr>
   <tr><td><em>n</em> crossings left unjoined; split the curves there to make a node.</td>

@@ -135,6 +135,19 @@ function buildCageSurfaces(cage) {
   return surfaces;
 }
 
+// The cage surfaces joined into one solid per pipe frame. join consumes the surfaces it merges and only merges the
+// ones that share edges, so several pipe frames come out as several solids with no grouping needed. It is the slow
+// half of this output and, unlike planarsrf, is already one call over the whole list, so there is nothing to batch.
+// The result is a closed solid only when the cage is closed: with Cap off it is an open surface, as the summary says.
+function buildCageSolid(cage) {
+  var surfaces = buildCageSurfaces(cage);
+  return addedBy(function () {
+    var f = moi.command.createFactory('join');
+    f.setInput(0, surfaces);
+    f.commit();
+  });
+}
+
 function plural(n, word) { return n + ' ' + word + (n == 1 ? '' : 's'); }
 
 // The input curves meeting a joint that could not be built: named and left selected so the user can see which
@@ -190,11 +203,12 @@ function pass(curves) {
   } else if (output == 'surfaces') {
     objs = buildCageSurfaces(cage);
     notes = plural(objs.length, 'cage surface') + ' for ' + plural(cage.faces.length, 'cage face') + '.<br>';
+  } else if (output == 'solid') {
+    objs = buildCageSolid(cage);
+    notes = plural(objs.length, 'cage solid') + ' from ' + plural(cage.faces.length, 'cage face') + '.<br>';
   } else {
-    // Cage solid is not built yet; it gives the curves so no value in the option does nothing.
     objs = buildCageCurves(cage);
-    notes = plural(objs.length, 'cage curve') + ' for ' + plural(cage.faces.length, 'cage face') + '.<br>' +
-      (output == 'curves' ? '' : 'Cage solid is not available yet, so the cage curves were added instead.<br>');
+    notes = plural(objs.length, 'cage curve') + ' for ' + plural(cage.faces.length, 'cage face') + '.<br>';
   }
   for (i = 0; i < objs.length; i++) objs.item(i).name = '';
 

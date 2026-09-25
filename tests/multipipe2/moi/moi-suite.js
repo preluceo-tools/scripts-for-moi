@@ -22,7 +22,9 @@
 // command's own buildCageCurves(), checked for count, closedness and that no file is written, on scenes covering
 // faces of 3, 4, 6, 8 and 10 vertices plus a 2-degree strut pair whose joint cannot be built. The same scenes
 // repeat for the cage surfaces output (ticket 15) — one surface per face, counted by diffing the document, with
-// the construction curves cleaned up — and the lattice cage gets a timed surfaces run, which fails if the
+// the construction curves cleaned up — and for the cage solid output (ticket 16), where those surfaces are joined
+// into one closed solid per pipe frame, with 'twoframes' (cubeframe plus a distant line) checking that two groups
+// come out as two solids. The lattice cage gets a timed surfaces run and a timed solid run, which fail if the
 // batched planarsrf is ever replaced by a call per face.
 // Returns { passed, failed: [ { scene, reason } ], results: [ { scene, ms, objects } ] }.
 //
@@ -132,14 +134,17 @@ function runMoiSuite(root) {
   // angle at which the joint actually fails (5 degrees still builds here, measured).
   // The same runs repeat for the cage surfaces output (ticket 15): one planar surface per face, built with a
   // single batched planarsrf, with the construction curves gone from the document afterwards.
-  var cageRuns = ['cubeframe', 'roofTruss', 'x4planar', 'tightpair'], A2 = 2 * Math.PI / 180;
-  var kinds = ['curves', 'surfaces'], ki, kind;
+  var cageRuns = ['cubeframe', 'roofTruss', 'x4planar', 'tightpair', 'twoframes'], A2 = 2 * Math.PI / 180;
+  var kinds = ['curves', 'surfaces', 'solid'], ki, kind;
   for (ki = 0; ki < kinds.length; ki++)
   for (n = 0; n < cageRuns.length; n++) {
     kind = kinds[ki];
     var cname = cageRuns[n], clabel = cname + ' (cage ' + kind + ')', cspec = cname === 'tightpair'
       ? [{ type: 'line', pts: [[0, 0, 0], [100, 0, 0]] },
          { type: 'line', pts: [[0, 0, 0], [100 * Math.cos(A2), 100 * Math.sin(A2), 0]] }]
+      // Two connected groups 200 units apart: one solid per group, so join must not weld them into one object.
+      : cname === 'twoframes'
+      ? scenes.cubeframe.concat([{ type: 'line', pts: [[200, 0, 0], [300, 0, 0]] }])
       : scenes[cname];
     var why2 = '', sizes = {}, key;
     curves = gd.createObjectList();
@@ -147,15 +152,21 @@ function runMoiSuite(root) {
     cage = plan(describe(curves), { radius: R, nodeSize: 1.6, cap: true, tolerance: tol });
     for (i = 0; i < cage.faces.length; i++) { key = cage.faces[i].length; sizes[key] = (sizes[key] || 0) + 1; }
     var t1 = new Date().getTime();
-    objs = cage.report.errors.length ? gd.createObjectList() : kind === 'curves' ? buildCageCurves(cage) : buildCageSurfaces(cage);
+    objs = cage.report.errors.length ? gd.createObjectList()
+      : kind === 'curves' ? buildCageCurves(cage) : kind === 'surfaces' ? buildCageSurfaces(cage) : buildCageSolid(cage);
+    // Cage solid joins the faces, so the count to expect is one object per pipe frame, not one per face — except on
+    // tightpair, where the joint that could not be built leaves its cage in 3 unconnected pieces (measured).
+    var want = kind !== 'solid' ? cage.faces.length : cname === 'tightpair' ? 3 : cage.report.pipeFrames;
     var res = { scene: clabel, ms: new Date().getTime() - t1, objects: objs.length, faceSizes: sizes };
     out.results.push(res);
     for (i = 0; i < objs.length; i++) {
       if (kind === 'curves' ? (!objs.item(i).isCurve || !objs.item(i).isClosed) : objs.item(i).isCurve) why2 = 'object ' + i + ' is not a ' + (kind === 'curves' ? 'closed curve' : 'surface');
+      // A failed joint leaves the cage open there, so tightpair is the one scene whose solid is not closed.
+      if (kind === 'solid' && cname !== 'tightpair' && !objs.item(i).isSolidBRep) why2 = 'object ' + i + ' is not a closed solid';
       objs.item(i).name = '';
     }
     if (cage.report.errors.length) why2 = cage.report.errors.join('; ');
-    else if (objs.length !== cage.faces.length) why2 = objs.length + ' ' + kind + ', expected ' + cage.faces.length;
+    else if (objs.length !== want) why2 = objs.length + ' ' + kind + ', expected ' + want;
     else if (moi.filesystem.fileExists(tmp)) why2 = 'temp file left behind';
     // The cage surfaces output builds curves and must clean them up: nothing but its surfaces may be left.
     else if (gd.getObjects().length !== before + objs.length) why2 = (gd.getObjects().length - before - objs.length) + ' extra objects left in the document';
@@ -242,6 +253,23 @@ function runMoiSuite(root) {
     if (objs.length) gd.removeObjects(objs);
   }
   if (swhy) out.failed.push({ scene: 'lattice (cage surfaces)', reason: swhy }); else out.passed++;
+
+  // Cage solid on the same cage (ticket 16): surfaces plus one join, measured at 9.1 s, of which the join is 6.5 s.
+  // The ceiling catches a lost planarsrf batching, which took this output to about a minute.
+  var dwhy = why ? 'the lattice cage failed: ' + why : '', dres = { scene: 'lattice (cage solid)' };
+  out.results.push(dres);
+  if (!dwhy) {
+    t = new Date().getTime();
+    objs = buildCageSolid(cage);
+    dres.ms = new Date().getTime() - t;
+    dres.objects = objs.length;
+    if (objs.length !== 1) dwhy = objs.length + ' objects, expected 1';
+    else if (!objs.item(0).isSolidBRep) dwhy = 'the joined cage is not a closed solid';
+    else if (gd.getObjects().length !== before + objs.length) dwhy = 'construction geometry left in the document';
+    else if (dres.ms > 25000) dwhy = 'took ' + dres.ms + ' ms; planarsrf is probably not batched';
+    if (objs.length) gd.removeObjects(objs);
+  }
+  if (dwhy) out.failed.push({ scene: 'lattice (cage solid)', reason: dwhy }); else out.passed++;
 
   if (gd.getObjects().length !== before) out.failed.push({ scene: '*', reason: 'document changed' });
   // The run can outlast the bridge's call timeout, so the result is left in a global for a follow-up call to read.
