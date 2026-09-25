@@ -82,8 +82,9 @@ newer copy, restart MoI.</div>
     struts...&rdquo;</em> while MoI works. The count is the curve segments selected, before any duplicates
     are dropped. MoI may not repaint during a long build; the message is there so you know it has not
     hung.</li>
-  <li><strong>Read the summary</strong> and press <em>Done</em> to keep the pipe frame, or <em>Cancel</em>
-    to add nothing. Cancelling at any step leaves your document as it was.</li>
+  <li><strong>Read the summary</strong> and press <em>Done</em> to keep the pipe frame, <em>Back</em> to
+    change the options and build again, or <em>Cancel</em> to add nothing. Cancelling at any step leaves your
+    document as it was.</li>
 </ol>
 
 <p>One <kbd>Ctrl</kbd>+<kbd>Z</kbd> removes the whole result. The command changes none of MoI's settings:
@@ -337,7 +338,8 @@ a pipe frame of 300 struts, and the cage curves &mdash; one closed curve per fac
 6, 8 and 10 vertices, and on a joint too tight to build.</p>
 
 <p><strong>Checked by hand only, so worth a careful first look:</strong> the command panel (option fields,
-the greyed-out <em>Divisions</em> field, the <em>Output</em> list, prompts, the summary, <em>Done</em> and <em>Cancel</em>, values
+the greyed-out <em>Divisions</em> field, the <em>Output</em> list, prompts, the summary, <em>Done</em>, <em>Back</em>
+and <em>Cancel</em>, values
 remembered between runs), one <kbd>Ctrl</kbd>+<kbd>Z</kbd> removing the whole result, installing and running
 the command by name, and picking curves in a live document. Nothing has been run on macOS.</p>
 
@@ -371,8 +373,9 @@ engine that ships with MoI.</strong></p>
   </tr>
   <tr>
     <td>MoI command UI markup &mdash; <code>moi:DistanceInput</code>, <code>moi:NumericInput</code>,
-      <code>moi:CheckButton</code>, <code>moi:CommandDoneCancel</code>, <code>moi://ui/moi.css</code></td>
-    <td>The command panel: the option fields, the Done/Cancel buttons and MoI's own styling.</td>
+      <code>moi:CheckButton</code>, <code>moi:Select</code>, <code>moi:PushButton</code>,
+      <code>moi:CommandDoneCancel</code>, <code>moi://ui/moi.css</code></td>
+    <td>The command panel: the option fields, the Back button, the Done/Cancel buttons and MoI's own styling.</td>
     <td>Ships with MoI &mdash; <a href="https://moi3d.com/">moi3d.com</a></td>
     <td>Commercial (part of MoI)</td>
   </tr>

@@ -16,11 +16,12 @@ function getCurves() {
   return picker.objects.getStandaloneCurves();
 }
 
-// Waits for Done; false on Cancel.
+// Waits for Done; true on Done, 'back' on the Back button, false on Cancel.
 function waitForDone() {
   while (true) {
     if (!moi.ui.commandDialog.waitForEvent()) return false;
     if (moi.ui.commandDialog.event == 'done') return true;
+    if (moi.ui.commandDialog.event == 'back') return 'back';
   }
 }
 
@@ -28,14 +29,16 @@ function show(id, text) {
   var ui = moi.ui;
   ui.beginUIUpdate();
   ui.hideUI('SelectPrompt'); ui.hideUI('OptionsPrompt'); ui.hideUI('Options');
-  ui.hideUI('BuildingPrompt'); ui.hideUI('SummaryPrompt');
+  ui.hideUI('BuildingPrompt'); ui.hideUI('SummaryPrompt'); ui.hideUI('Back');
   ui.showUI(id);
   if (id == 'Options') ui.showUI('OptionsPrompt');
+  if (id == 'SummaryPrompt') ui.showUI('Back');
   if (text !== undefined) { ui.commandUI.Summary.innerHTML = text; ui.showUI('Summary'); }
   ui.endUIUpdate();
 }
 
-function stop(message) { show('SummaryPrompt', message); waitForDone(); }
+// Shows a message and ends the pass on whatever the user presses there: Done, Back or Cancel.
+function stop(message) { show('SummaryPrompt', message); return waitForDone(); }
 
 // Planner input: a line, a polyline when every segment is straight, and otherwise one entry per segment: a line when
 // straight, a smooth curve when not, sampled at equal arc length (parameters found from a finer parameter sweep).
@@ -131,15 +134,13 @@ function markFailed(curves, owners, failed) {
   }
 }
 
-function MultiPipe2() {
-  var curves = getCurves();
-  if (!curves) return;
-  curves.lockSelection();
-
+// One pass over the options, the build and the summary. Returns what the user ended it on: true for Done,
+// 'back' for the Back button, false for Cancel. Anything the pass added is removed unless it ended on Done.
+function pass(curves) {
   show('Options');
   moi.ui.commandUI.divisions.disabled = moi.ui.commandUI.auto.value;
   moi.ui.commandUI.allNodes.disabled = !moi.ui.commandUI.roundJoints.value;
-  if (!waitForDone()) return;
+  if (waitForDone() !== true) return false;   // Back is hidden on the options step, so this is Cancel.
 
   // The count before planning is the input segments; duplicates the planner drops are still in it.
   var ui = moi.ui.commandUI, cap = ui.cap.value, output = ui.output.value, owners = [], input = describe(curves, owners), segments = 0, i;
@@ -150,7 +151,7 @@ function MultiPipe2() {
     roundJoints: ui.roundJoints.value, allNodes: ui.allNodes.value,
     tolerance: moi.geometryDatabase.tolerance });
   var r = cage.report, frame = output == 'frame', objs, notes = '';
-  if (r.errors.length) { stop(r.errors.join('<br>')); return; }
+  if (r.errors.length) return stop(r.errors.join('<br>'));
   // A joint that could not be built is fatal to its own pipe frame only (the SubD import rejects the whole cage,
   // so the frame is dropped from the file); the rest are built, and a cage output draws everything.
   if (r.jointFailures) markFailed(curves, owners, r.failedCurves);
@@ -161,16 +162,16 @@ function MultiPipe2() {
 
   if (frame) {
     var build = r.jointFailures ? cage.partial : cage;
-    if (!build.faces.length) { stop('No pipe frame could be built: every one of them has a joint whose struts meet at too tight an angle.' + failures); return; }
+    if (!build.faces.length) return stop('No pipe frame could be built: every one of them has a joint whose struts meet at too tight an angle.' + failures);
     objs = importCage(build);
     var boxes = [];
-    if (!objs.length) { stop('The SubD import produced nothing, so nothing was added.'); return; }
+    if (!objs.length) return stop('The SubD import produced nothing, so nothing was added.');
     for (i = 0; i < objs.length; i++) {
       var b = objs.item(i).getBoundingBox();
       boxes.push([b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z]);
     }
     var bad = checkImport(build.box, boxes, moi.geometryDatabase.tolerance);
-    if (bad) { moi.geometryDatabase.removeObjects(objs); stop(bad); return; }
+    if (bad) { moi.geometryDatabase.removeObjects(objs); return stop(bad); }
   } else {
     // Cage surfaces and Cage solid are not built yet; they give the curves so no value in the option does nothing.
     objs = buildCageCurves(cage);
@@ -192,7 +193,25 @@ function MultiPipe2() {
     (r.roundedNodeFallbacks ? '<br>' + plural(r.roundedNodeFallbacks, 'node') + ' could not and kept the usual joint.' : '') +
     failures +
     (!cap && r.freeEnds ? '<br>Cap is off: ' + plural(r.freeEnds, 'free end') + ' left open, so the result is an open surface, not a solid.' : ''));
-  if (!waitForDone()) moi.geometryDatabase.removeObjects(objs);
+  var end = waitForDone();
+  if (end !== true) moi.geometryDatabase.removeObjects(objs);
+  return end;
+}
+
+function MultiPipe2() {
+  var curves = getCurves();
+  if (!curves) return;
+  curves.lockSelection();
+  // What the input curves looked like before the run, so Back and Cancel can put back the names and the selection
+  // markFailed changes. The selection itself is held, so Back never asks for the curves again.
+  var was = [], i;
+  for (i = 0; i < curves.length; i++) was.push([curves.item(i).name, curves.item(i).selected]);
+  var end;
+  do {
+    end = pass(curves);
+    if (end === true) return;
+    for (i = 0; i < curves.length; i++) { var c = curves.item(i); c.name = was[i][0]; c.selected = was[i][1]; }
+  } while (end === 'back');
 }
 
 MultiPipe2();

@@ -7,7 +7,7 @@
 			<div id="SelectPrompt" class="commandprompt">Select curves for MultiPipe2, then press Done</div>
 			<div id="OptionsPrompt" class="hiddencommandui">Set the options, then press Done</div>
 			<div id="BuildingPrompt" class="hiddencommandui">Building the pipe frame, please wait</div>
-			<div id="SummaryPrompt" class="hiddencommandui">Press Done to keep it, or Cancel to add nothing</div>
+			<div id="SummaryPrompt" class="hiddencommandui">Press Done to keep it, Back to change the options, or Cancel to add nothing</div>
 		</div>
 		<table id="Options" class="hiddencommandui">
 			<!-- Each option's label is its own text, not a textid: MoI's string table has no entry for these names,
@@ -28,6 +28,8 @@
 			<tr><td>All nodes:</td><td><moi:CheckButton id="allNodes" default="false">On</moi:CheckButton></td></tr>
 		</table>
 		<div id="Summary" class="hiddencommandui"></div>
+		<!-- Shown on the summary only: its click arrives as the event 'back', named after the id. -->
+		<div id="Back" class="hiddencommandui"><moi:PushButton id="back">Back</moi:PushButton></div>
 		<moi:CommandDoneCancel />
 	</body>
 </html>
