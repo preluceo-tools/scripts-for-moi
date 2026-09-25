@@ -201,6 +201,14 @@ there. It is still built, and the summary counts it. Lengthen the strut, lower <
 <p>Two struts leaving a node in exactly the same direction cannot be joined; that is an error, and nothing
 is built.</p>
 
+<p><strong>Joints too tight to build.</strong> Below a few degrees between two struts, no joint can be made at
+all. That is not fatal to the whole selection: the pipe frames that hold such a joint are left out and every
+other frame is still built, and the summary says how many joints failed and how many frames were dropped. The
+input curves meeting those joints are renamed <em>MultiPipe2 failed</em> and left selected when the command
+finishes, so you can find them in the viewport &mdash; no coordinates to chase. Switch <em>Output</em> to
+<em>Cage curves</em> to see the cage the failed joint sits in. Undo puts the names back along with the
+geometry.</p>
+
 <p><strong>Pinched joints.</strong> Even a joint that has grown enough not to fold through itself can still
 pinch a little where MoI's SubD import rounds it off, if the angle is acute enough and nothing nearby holds
 it round. Turn on <em>Round joints</em> to add one extra ring just inboard of the joint at every grown node
@@ -249,9 +257,12 @@ ends&rdquo;</em>. Further lines appear only when they apply:</p>
   <tr><td><em>n</em> cage curves for <em>n</em> cage faces.</td>
       <td>A cage output only: how many curves were added, and how many faces the cage has. The two numbers
         match.</td></tr>
-  <tr><td>The joint at (x, y, z) could not be built; its struts meet at too tight an angle.</td>
-      <td>A cage output only: that joint is missing from the cage, the rest of it is there. In
-        <em>Pipe frame</em> the same condition is an error and nothing is added.</td></tr>
+  <tr><td><em>n</em> joints could not be built; <em>n</em> pipe frames dropped. The curves there are named
+      MultiPipe2 failed and selected.</td>
+      <td>Those joints meet at too tight an angle. In <em>Pipe frame</em> each pipe frame holding one is left out
+        and the rest are built; in a cage output nothing is dropped and the whole cage is drawn. Either way the
+        input curves meeting a failed joint are renamed and left selected, so you can see them in the viewport
+        and fix them. The dropped count is not shown for a cage output.</td></tr>
   <tr><td>Cage surfaces and Cage solid are not available yet, so the cage curves were added instead.</td>
       <td>You chose an output that is not built yet.</td></tr>
   <tr><td><em>n</em> duplicate segments dropped.</td>
@@ -286,9 +297,9 @@ ends&rdquo;</em>. Further lines appear only when they apply:</p>
       <td>The curve could not be read as a strut.</td></tr>
   <tr><td>Two curves at (x, y, z) run in the same direction.</td>
       <td>Two struts leave that node along the same line. Remove or reshape one of them.</td></tr>
-  <tr><td>The joint at (x, y, z) could not be built; its struts meet at too tight an angle.</td>
-      <td>The struts at that node are too close to parallel for a joint. In a cage output this is a summary
-        line instead, and the rest of the cage is added.</td></tr>
+  <tr><td>No pipe frame could be built: every one of them has a joint whose struts meet at too tight an angle.</td>
+      <td>Every pipe frame in the selection held an unbuildable joint, so there was nothing left to add. The
+        curves at those joints are still renamed and selected.</td></tr>
   <tr><td>The SubD import produced nothing, so nothing was added.</td>
       <td>MoI's SubD import returned no objects.</td></tr>
   <tr><td>The pipe frame came in at the wrong size or place, so it was removed. Check that MoI's SubD import

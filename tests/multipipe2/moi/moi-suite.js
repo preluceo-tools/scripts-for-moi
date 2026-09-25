@@ -83,7 +83,8 @@ function runMoiSuite(root) {
     var input = describe(curves);
     var cage = plan(input, { radius: R, nodeSize: 1.6, divisions: runs[n].divisions, cap: runs[n].cap, tolerance: tol,
       roundJoints: runs[n].roundJoints, allNodes: runs[n].allNodes }), t0 = new Date().getTime();
-    var fatal = cage.report.errors.concat(cage.report.jointErrors);
+    var fatal = cage.report.errors.slice();
+    if (cage.report.jointFailures) fatal.push(cage.report.jointFailures + ' joint(s) could not be built');
     var objs = fatal.length ? gd.createObjectList() : importCage(cage), boxes = [], nakedLoops = 0;
     out.results.push({ scene: label, ms: new Date().getTime() - t0, objects: objs.length });
     for (i = 0; i < objs.length; i++) {
@@ -148,11 +149,35 @@ function runMoiSuite(root) {
     if (cage.report.errors.length) why2 = cage.report.errors.join('; ');
     else if (objs.length !== cage.faces.length) why2 = objs.length + ' curves, expected ' + cage.faces.length;
     else if (moi.filesystem.fileExists(tmp)) why2 = 'temp file left behind';
-    else if (cname === 'tightpair' && !cage.report.jointErrors.length) why2 = 'the 2 degree pair built its joint, so it does not test the warning';
-    else if (cname !== 'tightpair' && cage.report.jointErrors.length) why2 = cage.report.jointErrors.join('; ');
+    else if (cname === 'tightpair' && !cage.report.jointFailures) why2 = 'the 2 degree pair built its joint, so it does not test the warning';
+    else if (cname !== 'tightpair' && cage.report.jointFailures) why2 = cage.report.jointFailures + ' joint(s) could not be built';
     if (objs.length) gd.removeObjects(objs);
     if (why2) out.failed.push({ scene: cname + ' (cage curves)', reason: why2 }); else out.passed++;
   }
+
+  // Partial build (ticket 13): cubeframe plus a 2 degree hairpin 200 units away. Written whole, that cage imports
+  // as nothing at all, taking the good frame with it; dropping the failed frame must leave cubeframe's own solid.
+  var pspec = scenes.cubeframe.concat([{ type: 'line', pts: [[200, 0, 0], [300, 0, 0]] },
+    { type: 'line', pts: [[200, 0, 0], [200 + 100 * Math.cos(A2), 100 * Math.sin(A2), 0]] }]);
+  curves = gd.createObjectList();
+  for (i = 0; i < pspec.length; i++) curves.addObject(curve(pspec[i]));
+  cage = plan(describe(curves), { radius: R, nodeSize: 1.6, cap: true, tolerance: tol });
+  var pwhy = '', pr = cage.report;
+  objs = pr.errors.length || !cage.partial ? gd.createObjectList() : importCage(cage.partial);
+  out.results.push({ scene: 'cubeframe + tight hairpin (partial build)', objects: objs.length,
+    jointFailures: pr.jointFailures, framesDropped: pr.framesDropped, failedCurves: pr.failedCurves.length });
+  if (pr.errors.length) pwhy = pr.errors.join('; ');
+  else if (pr.jointFailures !== 1 || pr.framesDropped !== 1) pwhy = pr.jointFailures + ' joint failures, ' + pr.framesDropped + ' frames dropped, expected 1 and 1';
+  else if (pr.failedCurves.length !== 2) pwhy = pr.failedCurves.length + ' failed curves, expected 2';
+  else if (objs.length !== 1 || !objs.item(0).isSolidBRep) pwhy = 'expected one closed solid, got ' + objs.length + ' objects';
+  else if (moi.filesystem.fileExists(tmp)) pwhy = 'temp file left behind';
+  else {
+    b = objs.item(0).getBoundingBox();
+    pwhy = checkImport(cage.partial.box, [[b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z]], tol);
+    if (!pwhy && b.max.x > 100) pwhy = 'the hairpin frame came through: max x ' + b.max.x;
+  }
+  if (objs.length) gd.removeObjects(objs);
+  if (pwhy) out.failed.push({ scene: 'cubeframe + tight hairpin (partial build)', reason: pwhy }); else out.passed++;
 
   // Large frame: time each stage; the import must give one closed solid.
   var L = [], g = 4, S = 10, a, c, d;
@@ -167,7 +192,7 @@ function runMoiSuite(root) {
   cage = plan(describe(curves), { radius: 0.5, nodeSize: 1.6, cap: true, tolerance: tol });
   lat.planMs = new Date().getTime() - t;
   out.results.push(lat);
-  if (cage.report.errors.concat(cage.report.jointErrors).length) why = cage.report.errors.concat(cage.report.jointErrors).join('; ');
+  if (cage.report.errors.length || cage.report.jointFailures) why = cage.report.errors.concat(cage.report.jointFailures ? [cage.report.jointFailures + ' joint(s) could not be built'] : []).join('; ');
   else if (cage.report.struts !== 300 || cage.report.nodes !== 125) why = cage.report.struts + ' struts and ' + cage.report.nodes + ' nodes, expected 300 and 125';
   else {
     var wpath = moi.filesystem.getTempDir() + 'MultiPipe2-write-timing.obj', lines, ws;

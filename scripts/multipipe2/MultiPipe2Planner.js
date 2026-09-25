@@ -23,14 +23,20 @@
 //            reads as a crisp miter point instead of pinching; skipped (falling back to the flat hull) if the
 //            fan would self-intersect or invert, counted in report.roundedNodes / report.roundedNodeFallbacks.
 //   returns: { vertices: [[x,y,z], ...], faces: [[i, j, k, l], ...], box: [minX, minY, minZ, maxX, maxY, maxZ],
+//              partial: the same three fields with every pipe frame holding an unbuildable joint dropped (null when
+//                       none failed; its faces may be empty when every frame failed),
 //              report: { pipeFrames, struts, nodes, freeEnds, duplicatesDropped, crossings, grownNodes, largestReach,
-//                        shortStruts, roundedNodes, roundedNodeFallbacks, errors, jointErrors, warnings } }
+//                        shortStruts, roundedNodes, roundedNodeFallbacks, jointFailures, framesDropped, failedCurves,
+//                        errors, warnings } }
 //   Endpoints within tolerance are one node.
 //   duplicatesDropped: segments dropped because an earlier one has the same ends (either direction) and shape.
 //   crossings: strut pairs that pass within tolerance of each other away from their ends; left unjoined, one
 //              warning each.
-//   jointErrors: joints that could not be built, one message each. Kept apart from errors because they are fatal
-//                only to the pipe frame; a cage output draws the rest of the cage and reports them as warnings.
+//   jointFailures: nodes whose joint could not be built, counted once each however many struts meet there. Kept
+//                apart from errors because they are fatal only to the pipe frames holding them: `partial` drops
+//                those frames and keeps the rest, and a cage output draws the whole cage.
+//   framesDropped: pipe frames `partial` leaves out, one per connected group holding a failed joint.
+//   failedCurves: indices into `curves` of every input entry with a strut at a failed joint, ascending.
 //   largestReach: the largest ring offset at a grown node, as a factor of radius (0 when none grew).
 //   shortStruts: struts shorter than the ring offsets at their two ends (still built).
 //   The cage: a square ring (half-width radius / 0.93) at the node's ring offset (along the curve) from every node
@@ -147,8 +153,8 @@ function hullFacets(P) {
 }
 
 // Consistent winding by walking shared edges, then each connected group flipped outward by signed volume.
-// Returns the number of groups.
-function orient(V, F) {
+// Returns the number of groups, and fills group[fi] with each face's group index.
+function orient(V, F, group) {
   var edgeFaces = {}, done = [], groups = 0, fi, i;
   function key(a, b) { return Math.min(a, b) + '_' + Math.max(a, b); }
   for (fi = 0; fi < F.length; fi++) for (i = 0; i < F[fi].length; i++) {
@@ -174,6 +180,7 @@ function orient(V, F) {
     }
     for (i = 0; i < comp.length; i++) {
       f = F[comp[i]];
+      if (group) group[comp[i]] = groups - 1;
       for (var t = 1; t + 1 < f.length; t++) vol += dot(V[f[0]], cross(V[f[t]], V[f[t + 1]]));
     }
     if (vol < 0) for (i = 0; i < comp.length; i++) F[comp[i]].reverse();
@@ -185,8 +192,8 @@ function plan(curves, options) {
   var R = options.radius, tol = options.tolerance, cap = options.cap !== false, i, j, k;
   var V = [], F = [];
   var report = { pipeFrames: 0, struts: 0, nodes: 0, freeEnds: 0, duplicatesDropped: 0, crossings: 0, grownNodes: 0, largestReach: 0, shortStruts: 0,
-    roundedNodes: 0, roundedNodeFallbacks: 0, errors: [], jointErrors: [], warnings: [] };
-  var out = { vertices: V, faces: F, box: null, report: report };
+    roundedNodes: 0, roundedNodeFallbacks: 0, jointFailures: 0, framesDropped: 0, failedCurves: [], errors: [], warnings: [] };
+  var out = { vertices: V, faces: F, box: null, partial: null, report: report };
   if (!(R > 0)) report.errors.push('Radius must be greater than zero.');
   if (!(options.nodeSize >= 1)) report.errors.push('Node size must be at least 1.0.');
   var divs = options.divisions === undefined || options.divisions === 'auto' ? 0 : options.divisions;
@@ -196,7 +203,7 @@ function plan(curves, options) {
   var w = R * WIDTH, d0 = options.nodeSize * R;
 
   // ponytail: O(n^2) endpoint clustering, a spatial hash when large frames need it.
-  var points = [], inc = [], struts = [], tracks = [];
+  var points = [], inc = [], struts = [], tracks = [], srcs = [];
   function node(p) {
     for (var n = 0; n < points.length; n++) if (len(sub(points[n], p)) <= tol) return n;
     points.push(p); inc.push([]);
@@ -224,11 +231,12 @@ function plan(curves, options) {
     kept.push({ a: a, b: b, m: m });
     return false;
   }
-  function addStrut(tr) {
+  // src: the index in curves of the entry this strut came from, so a failed joint can name its input curves.
+  function addStrut(tr, src) {
     var s = [node(tr.p[0]), node(tr.p[tr.p.length - 1])];
     inc[s[0]].push({ si: struts.length, end: 0 });
     inc[s[1]].push({ si: struts.length, end: 1 });
-    struts.push(s); tracks.push(tr);
+    struts.push(s); tracks.push(tr); srcs.push(src);
   }
   for (i = 0; i < curves.length; i++) {
     var c = curves[i], pts = c.kind === 'line' ? [c.start, c.end] : c.kind === 'polyline' ? c.points || [] : c.kind === 'smooth' ? c.samples || [] : null, nonZero = false;
@@ -236,13 +244,13 @@ function plan(curves, options) {
     if (c.kind === 'smooth') {
       var tr = pts.length > 1 ? track(pts, c.startTangent, c.endTangent) : null;
       if (!tr || tr.L <= tol) { report.errors.push('Curve ' + (i + 1) + ' has zero length.'); continue; }
-      if (!isDuplicate(tr.p[0], tr.p[tr.p.length - 1], tr.p)) addStrut(tr);
+      if (!isDuplicate(tr.p[0], tr.p[tr.p.length - 1], tr.p)) addStrut(tr, i);
       continue;
     }
     for (j = 0; j + 1 < pts.length; j++) {
       if (near(pts[j], pts[j + 1])) continue;
       nonZero = true;
-      if (!isDuplicate(pts[j], pts[j + 1], [pts[j], pts[j + 1]])) addStrut(track([pts[j], pts[j + 1]]));
+      if (!isDuplicate(pts[j], pts[j + 1], [pts[j], pts[j + 1]])) addStrut(track([pts[j], pts[j + 1]]), i);
     }
     if (!nonZero) report.errors.push('Curve ' + (i + 1) + ' has zero length.');
   }
@@ -360,6 +368,7 @@ function plan(curves, options) {
     rings.push([rs[0], rs[rs.length - 1]]);
   }
 
+  var failedVerts = {}, failedSrc = {};
   for (ni = 0; ni < points.length; ni++) {
     here = inc[ni];
     if (isLoop(ni)) continue;
@@ -437,20 +446,55 @@ function plan(curves, options) {
         if (fk in ringKeys) { found[ringKeys[fk]] = true; continue; }
         F.push(facets[j].map(function (m) { return ids[m]; }));
       }
-      for (j = 0; j < here.length; j++) {
-        if (!found[j]) report.jointErrors.push('The joint at ' + where(points[ni]) + ' could not be built; its struts meet at too tight an angle.');
+      // One failure per node, however many of its struts came away unattached, and no coordinate: the input
+      // curves meeting it are reported instead, for the command to name and select (ticket 13).
+      var failedHere = false;
+      for (j = 0; j < here.length; j++) if (!found[j]) failedHere = true;
+      if (failedHere) {
+        report.jointFailures++;
+        for (j = 0; j < here.length; j++) {
+          var rgf = rings[here[j].si][here[j].end];
+          for (k = 0; k < 4; k++) failedVerts[rgf[k]] = true;
+          failedSrc[srcs[here[j].si]] = true;
+        }
       }
     }
   }
   report.struts = struts.length;
-  report.pipeFrames = orient(V, F);
+  var faceGroup = [];
+  report.pipeFrames = orient(V, F, faceGroup);
 
-  var box = [1e30, 1e30, 1e30, -1e30, -1e30, -1e30];
+  // Partial build: a pipe frame holding a failed joint is unbuildable as a whole (MoI's SubD import rejects the
+  // cage and adds nothing at all, taking every other frame in the same file with it), so it is dropped and the
+  // rest kept. The connected group the winding walk already found is exactly the frame to drop.
+  if (report.jointFailures) {
+    var badGroup = {}, keepV = [], map = [], faces2 = [], g;
+    for (i = 0; i < F.length; i++) for (j = 0; j < F[i].length; j++) if (failedVerts[F[i][j]]) { badGroup[faceGroup[i]] = true; break; }
+    for (g in badGroup) if (badGroup[g]) report.framesDropped++;
+    for (i = 0; i < F.length; i++) {
+      if (badGroup[faceGroup[i]]) continue;
+      var face2 = [];
+      for (j = 0; j < F[i].length; j++) {
+        var m = F[i][j];
+        if (map[m] === undefined) { map[m] = keepV.length; keepV.push(V[m]); }
+        face2.push(map[m]);
+      }
+      faces2.push(face2);
+    }
+    out.partial = { vertices: keepV, faces: faces2, box: boxOf(keepV) };
+    for (i = 0; i < curves.length; i++) if (failedSrc[i]) report.failedCurves.push(i);
+  }
+
+  out.box = boxOf(V);
+  return out;
+}
+
+function boxOf(V) {
+  var box = [1e30, 1e30, 1e30, -1e30, -1e30, -1e30], i, k;
   for (i = 0; i < V.length; i++) for (k = 0; k < 3; k++) {
     box[k] = Math.min(box[k], V[i][k]); box[k + 3] = Math.max(box[k + 3], V[i][k]);
   }
-  out.box = box;
-  return out;
+  return box;
 }
 
 function objLines(cage) {

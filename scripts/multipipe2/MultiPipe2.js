@@ -40,8 +40,11 @@ function stop(message) { show('SummaryPrompt', message); waitForDone(); }
 // Planner input: a line, a polyline when every segment is straight, and otherwise one entry per segment: a line when
 // straight, a smooth curve when not, sampled at equal arc length (parameters found from a finer parameter sweep).
 // ponytail: fixed 128 samples a segment; a curve winding round many turns wants a count from its length or turn.
-function describe(curves) {
+// owners, when given, is filled in step with the entries: the curve object each entry came from, so a failed
+// joint's planner indices map back to the objects to name and select.
+function describe(curves, owners) {
   var input = [];
+  function push(entry) { input.push(entry); if (owners) owners.push(owner); }
   function A(p) { return [p.x, p.y, p.z]; }
   function smooth(s) {
     var t0 = s.domainMin, t1 = s.domainMax, M = 1024, N = 128, p = [], acc = [0], out = [], j = 0, k;
@@ -57,16 +60,16 @@ function describe(curves) {
     }
     return { kind: 'smooth', samples: out, startTangent: A(s.evaluateTangent(t0)), endTangent: A(s.evaluateTangent(t1)) };
   }
-  for (var i = 0; i < curves.length; i++) {
-    var c = curves.item(i), segs = c.getSubObjects(), pts = [A(c.evaluatePoint(c.domainMin))], j;
-    if (c.isLine) { input.push({ kind: 'line', start: pts[0], end: A(c.evaluatePoint(c.domainMax)) }); continue; }
+  for (var i = 0, owner; i < curves.length; i++) {
+    var c = owner = curves.item(i), segs = c.getSubObjects(), pts = [A(c.evaluatePoint(c.domainMin))], j;
+    if (c.isLine) { push({ kind: 'line', start: pts[0], end: A(c.evaluatePoint(c.domainMax)) }); continue; }
     for (j = 0; j < segs.length && segs.item(j).isLine; j++) pts.push(A(segs.item(j).evaluatePoint(segs.item(j).domainMax)));
-    if (segs.length && j === segs.length) { input.push({ kind: 'polyline', points: pts }); continue; }
-    if (!segs.length) { input.push(smooth(c)); continue; }
+    if (segs.length && j === segs.length) { push({ kind: 'polyline', points: pts }); continue; }
+    if (!segs.length) { push(smooth(c)); continue; }
     for (j = 0; j < segs.length; j++) {
       var s = segs.item(j);
       if (s.isLine && s.getLength() <= moi.geometryDatabase.tolerance) continue;
-      input.push(s.isLine ? { kind: 'line', start: A(s.evaluatePoint(s.domainMin)), end: A(s.evaluatePoint(s.domainMax)) } : smooth(s));
+      push(s.isLine ? { kind: 'line', start: A(s.evaluatePoint(s.domainMin)), end: A(s.evaluatePoint(s.domainMax)) } : smooth(s));
     }
   }
   return input;
@@ -116,6 +119,18 @@ function buildCageCurves(cage) {
 
 function plural(n, word) { return n + ' ' + word + (n == 1 ? '' : 's'); }
 
+// The input curves meeting a joint that could not be built: named and left selected so the user can see which
+// ones defeated the command, and every other input curve deselected so only those stand out.
+function markFailed(curves, owners, failed) {
+  var bad = {}, i, obj;
+  for (i = 0; i < failed.length; i++) bad[owners[failed[i]].id] = true;
+  for (i = 0; i < curves.length; i++) {
+    obj = curves.item(i);
+    if (bad[obj.id]) { obj.name = 'MultiPipe2 failed'; obj.selected = true; }
+    else obj.selected = false;
+  }
+}
+
 function MultiPipe2() {
   var curves = getCurves();
   if (!curves) return;
@@ -127,7 +142,7 @@ function MultiPipe2() {
   if (!waitForDone()) return;
 
   // The count before planning is the input segments; duplicates the planner drops are still in it.
-  var ui = moi.ui.commandUI, cap = ui.cap.value, output = ui.output.value, input = describe(curves), segments = 0, i;
+  var ui = moi.ui.commandUI, cap = ui.cap.value, output = ui.output.value, owners = [], input = describe(curves, owners), segments = 0, i;
   for (i = 0; i < input.length; i++) segments += input[i].kind == 'polyline' ? input[i].points.length - 1 : 1;
   show('BuildingPrompt', 'Building ' + plural(segments, 'strut') + '...');
   var cage = plan(input, { radius: ui.radius.value, nodeSize: ui.nodesize.value,
@@ -135,31 +150,36 @@ function MultiPipe2() {
     roundJoints: ui.roundJoints.value, allNodes: ui.allNodes.value,
     tolerance: moi.geometryDatabase.tolerance });
   var r = cage.report, frame = output == 'frame', objs, notes = '';
-  // A joint that could not be built stops the pipe frame (the SubD import rejects such a cage); a cage output
-  // draws the rest of the cage and reports it.
-  var errors = frame ? r.errors.concat(r.jointErrors) : r.errors;
-  if (errors.length) { stop(errors.join('<br>')); return; }
+  if (r.errors.length) { stop(r.errors.join('<br>')); return; }
+  // A joint that could not be built is fatal to its own pipe frame only (the SubD import rejects the whole cage,
+  // so the frame is dropped from the file); the rest are built, and a cage output draws everything.
+  if (r.jointFailures) markFailed(curves, owners, r.failedCurves);
+  var frames = frame ? r.pipeFrames - r.framesDropped : r.pipeFrames;
+  var failures = r.jointFailures ? '<br>' + plural(r.jointFailures, 'joint') + ' could not be built; ' +
+    (frame ? plural(r.framesDropped, 'pipe frame') + ' dropped. ' : '') +
+    'The curves there are named MultiPipe2 failed and selected.' : '';
 
   if (frame) {
-    objs = importCage(cage);
+    var build = r.jointFailures ? cage.partial : cage;
+    if (!build.faces.length) { stop('No pipe frame could be built: every one of them has a joint whose struts meet at too tight an angle.' + failures); return; }
+    objs = importCage(build);
     var boxes = [];
     if (!objs.length) { stop('The SubD import produced nothing, so nothing was added.'); return; }
     for (i = 0; i < objs.length; i++) {
       var b = objs.item(i).getBoundingBox();
       boxes.push([b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z]);
     }
-    var bad = checkImport(cage.box, boxes, moi.geometryDatabase.tolerance);
+    var bad = checkImport(build.box, boxes, moi.geometryDatabase.tolerance);
     if (bad) { moi.geometryDatabase.removeObjects(objs); stop(bad); return; }
   } else {
     // Cage surfaces and Cage solid are not built yet; they give the curves so no value in the option does nothing.
     objs = buildCageCurves(cage);
     notes = plural(objs.length, 'cage curve') + ' for ' + plural(cage.faces.length, 'cage face') + '.<br>' +
-      (output == 'curves' ? '' : 'Cage surfaces and Cage solid are not available yet, so the cage curves were added instead.<br>') +
-      (r.jointErrors.length ? r.jointErrors.join('<br>') + '<br>' : '');
+      (output == 'curves' ? '' : 'Cage surfaces and Cage solid are not available yet, so the cage curves were added instead.<br>');
   }
   for (i = 0; i < objs.length; i++) objs.item(i).name = '';
 
-  show('SummaryPrompt', notes + plural(r.pipeFrames, 'pipe frame') + ', ' + plural(r.struts, 'strut') + ', ' +
+  show('SummaryPrompt', notes + plural(frames, 'pipe frame') + ', ' + plural(r.struts, 'strut') + ', ' +
     plural(r.nodes, 'node') + ', ' + plural(r.freeEnds, 'free end') +
     (r.duplicatesDropped ? '<br>' + plural(r.duplicatesDropped, 'duplicate segment') + ' dropped.' : '') +
     (r.crossings ? '<br>' + plural(r.crossings, 'crossing') + ' left unjoined; split the curves there to make a node.<br>' +
@@ -170,6 +190,7 @@ function MultiPipe2() {
       ' joints; the frame may intersect itself there.' : '') +
     (r.roundedNodes ? '<br>' + plural(r.roundedNodes, 'node') + ' came to a miter point.' : '') +
     (r.roundedNodeFallbacks ? '<br>' + plural(r.roundedNodeFallbacks, 'node') + ' could not and kept the usual joint.' : '') +
+    failures +
     (!cap && r.freeEnds ? '<br>Cap is off: ' + plural(r.freeEnds, 'free end') + ' left open, so the result is an open surface, not a solid.' : ''));
   if (!waitForDone()) moi.geometryDatabase.removeObjects(objs);
 }

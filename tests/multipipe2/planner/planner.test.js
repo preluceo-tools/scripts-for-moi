@@ -400,11 +400,13 @@ test('round joints: a node that hard-fails today\'s hull-plane test still fails 
     { kind: 'line', start: [0, 0, 0], end: [13.736243783851254, -7.403452447528847, 104.31721061717117] },
   ];
   const base = plan(curves, opts);
-  // A joint failure is reported in jointErrors, not errors: it is fatal only to the pipe frame output (ticket 12).
+  // A joint failure is counted in jointFailures, not errors: it is fatal only to the pipe frame holding it
+  // (ticket 12), and a five-strut hub counts once, not once per strut (ticket 13).
   assert.deepStrictEqual(base.report.errors, []);
-  assert.match(base.report.jointErrors[0], /too tight an angle/);
+  assert.strictEqual(base.report.jointFailures, 1);
+  assert.deepStrictEqual(base.report.failedCurves, [0, 1, 2, 3, 4]);
   const cage = plan(curves, { ...opts, roundJoints: true, allNodes: true });
-  assert.deepStrictEqual(cage.report.jointErrors, base.report.jointErrors);
+  assert.strictEqual(cage.report.jointFailures, base.report.jointFailures);
   assert.strictEqual(cage.report.roundedNodes, 0);
   assert.strictEqual(cage.report.roundedNodeFallbacks, 1);
 });
@@ -532,4 +534,35 @@ test('smooth duplicates and crossings behave as lines do', () => {
   assert.strictEqual(plan([arc([0, 0, 0], 10, 0, 2 * Math.PI), line([-20, 1, 0], [20, 1, 0])], v1Opts).report.crossings, 2);
   // Meeting at a node, or a tip landing on the curve, is not a crossing.
   assert.strictEqual(plan([arc([0, 0, 0], 10, 0, Math.PI), line([10, 0, 0], [10, -10, 0]), line([0, 10, 0], [0, 20, 0])], v1Opts).report.crossings, 0);
+});
+
+test('a failed joint drops only its own pipe frame, and names the curves that meet it (ticket 13)', () => {
+  // cubeframe plus a 5 degree hairpin 200 units away: the hairpin's node cannot be built, so its frame is
+  // dropped and cubeframe's is kept. Written whole, the cage imports as nothing at all; that is the bug.
+  const cube = lines(scenes.cubeframe);
+  const hairpin = [
+    { kind: 'line', start: [200, 0, 0], end: [230, 0, 0] },
+    { kind: 'line', start: [200, 0, 0], end: [229.885842, 2.615661, 0] },
+  ];
+  const cage = plan([...cube, ...hairpin], opts);
+  const r = cage.report;
+  assert.deepStrictEqual(r.errors, []);
+  assert.strictEqual(r.jointFailures, 1);
+  assert.strictEqual(r.pipeFrames, 2);
+  assert.strictEqual(r.framesDropped, 1);
+  // The hairpin is the last two input entries; cubeframe's curves are untouched.
+  assert.deepStrictEqual(r.failedCurves, [cube.length, cube.length + 1]);
+  // What is left is cubeframe alone: a closed, outward-wound cage with cubeframe's own box.
+  assert.ok(cage.partial.faces.length > 0 && cage.partial.faces.length < cage.faces.length);
+  assertClosedAndWound(cage.partial, 'partial');
+  assert.deepStrictEqual(cage.partial.box, plan(cube, opts).box);
+  for (const v of cage.partial.vertices) assert.ok(v[0] < 100, 'a hairpin vertex survived');
+});
+
+test('no failures leaves the report and the cage untouched (ticket 13)', () => {
+  const cage = run('cubeframe'), r = cage.report;
+  assert.strictEqual(r.jointFailures, 0);
+  assert.strictEqual(r.framesDropped, 0);
+  assert.deepStrictEqual(r.failedCurves, []);
+  assert.strictEqual(cage.partial, null);
 });
