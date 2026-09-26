@@ -49,7 +49,7 @@ geometry commands.
 
 | Script | Download | Manual |
 |---|---|---|
-| **MultiPipe2** 1.1.2 | **[MultiPipe2.zip](https://github.com/preluceo-tools/scripts-for-moi/raw/main/dist/MultiPipe2.zip)** (47 KB) | [README](scripts/multipipe2/README.md) · [Manual](https://htmlpreview.github.io/?https://github.com/preluceo-tools/scripts-for-moi/blob/main/scripts/multipipe2/MultiPipe2-manual.html) |
+| **MultiPipe2** 1.1.3 | **[MultiPipe2.zip](https://github.com/preluceo-tools/scripts-for-moi/raw/main/dist/MultiPipe2.zip)** (47 KB) | [README](scripts/multipipe2/README.md) · [Manual](https://htmlpreview.github.io/?https://github.com/preluceo-tools/scripts-for-moi/blob/main/scripts/multipipe2/MultiPipe2-manual.html) |
 | **MultiPipe** | **[MultiPipe.zip](https://github.com/preluceo-tools/scripts-for-moi/raw/main/dist/MultiPipe.zip)** (29 KB) | [Manual](https://htmlpreview.github.io/?https://github.com/preluceo-tools/scripts-for-moi/blob/main/scripts/multipipe/MultiPipe-manual.html) |
 
 The zip holds the command files, the manual and the licence. Unzip it and follow

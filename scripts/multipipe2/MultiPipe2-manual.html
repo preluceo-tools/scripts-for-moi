@@ -22,7 +22,7 @@
 </head>
 <body>
 
-<h1>MultiPipe2 1.1.2</h1>
+<h1>MultiPipe2 1.1.3</h1>
 <p class="lead">Turn a network of curves into a smooth pipe frame, inside MoI, in a single step.</p>
 <p>This is the full reference. For a shorter, more visual overview &mdash; and how MultiPipe2
 compares to Rhino's own native <code>MultiPipe</code> command &mdash; see the
@@ -198,8 +198,8 @@ it is on &mdash; the styles in the scene browser, the ones that colour your curv
   <li>Put the curves that should share a thickness on the same style, and the ones that should differ on
     another. Any styles will do, including ones you add yourself in <em>Edit styles</em>.</li>
   <li>Select them all and run MultiPipe2.</li>
-  <li>The options step shows <strong>one radius field per style in your selection</strong>, each labelled with
-    that style's name. Set them and press Done.</li>
+  <li>The options step shows <strong>one Radius field per style in your selection</strong>, in the
+    <em>MultiPipe2</em> options panel above <em>Node size</em>, each labelled with that style's name and a colon. Set them and press Done.</li>
 </ol>
 
 <p>Notes:</p>
@@ -207,11 +207,11 @@ it is on &mdash; the styles in the scene browser, the ones that colour your curv
 <ul>
   <li><strong>One style, one field.</strong> If every selected curve is on the same style, the options step shows
     a single <em>Radius</em> field for the whole frame, and none of this has to be used.</li>
-  <li><strong>The rows follow your selection, not the style list.</strong> The first field belongs to the first
+  <li><strong>The fields follow your selection, not the style list.</strong> The first field belongs to the first
     style found among the selected curves, the second to the next, and so on. At most eight styles can be
     mixed in one run; more is an error, and nothing is built.</li>
-  <li><strong>The rows start from the current <em>Radius</em>,</strong> so a value you tuned on a one-style run
-    carries over the first time the per-style rows appear.</li>
+  <li><strong>The fields start from the current <em>Radius</em>,</strong> so a value you tuned on a one-style run
+    carries over the first time the per-style fields appear.</li>
   <li><strong>Joints need nothing extra.</strong> A node where struts of different radii meet is built the same
     way as any other; there is no taper between them, and a strut is one radius end to end.</li>
   <li><strong>A node is sized by the largest radius meeting there,</strong> shared by all its struts. So a thin
@@ -347,7 +347,7 @@ ends&rdquo;</em>. Further lines appear only when they apply:</p>
   <tr><td>Select at least one curve.</td><td>No curve was picked.</td></tr>
   <tr><td>Radius must be greater than zero.</td><td>The radius was zero or negative.</td></tr>
   <tr><td>Radius for <em>style</em> must be greater than zero.</td><td>One of the per-style radius fields was
-      zero or negative. The message names the style, so you know which row to fix.</td></tr>
+      zero or negative. The message names the style, so you know which field to fix.</td></tr>
   <tr><td>The selection spans <em>n</em> styles; MultiPipe2 takes at most 8 in one run, one radius each.</td>
       <td>See <a href="#perstyle">A radius per style</a>. Run it on fewer styles at a time.</td></tr>
   <tr><td>Node size must be at least 1.0.</td><td>The node size was below 1.0.</td></tr>
@@ -401,7 +401,7 @@ a pipe frame of 300 struts, the cage curves &mdash; one closed curve per face, o
 the same cages and on the 300-strut frame, with the construction curves gone afterwards. A frame built with a radius per curve is covered both ways: the ring widths, the node offset and the reported reach in the cage tests, and a mixed-radius scene put through the real SubD import.</p>
 
 <p><strong>Checked by hand only, so worth a careful first look:</strong> the command panel (option fields,
-the greyed-out <em>Divisions</em> field, the <em>Output</em> list, the per-style radius rows and their labels,
+the greyed-out <em>Divisions</em> field, the <em>Output</em> list, the per-style Radius fields and their labels,
 prompts, the summary, <em>Done</em>, <em>Back</em>
 and <em>Cancel</em>, values
 remembered between runs), one <kbd>Ctrl</kbd>+<kbd>Z</kbd> removing the whole result, installing and running
