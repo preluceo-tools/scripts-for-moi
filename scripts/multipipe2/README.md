@@ -62,7 +62,7 @@ https://github.com/user-attachments/assets/071b6773-6232-4697-a9c9-91e274a16de6
 
 | Option | Default | What it does |
 |---|---|---|
-| Radius | 0.5 | Strut radius, as a distance in your document units. When the selected curves are all on one style, this is the only radius input and applies to every strut. When they span two or more styles, one radius input appears per style instead, named after it, so each curve builds its own thickness. Each has a Pick button that sets the radius by pointing in the viewport, with a guide circle and a Cage curves preview. |
+| Radius | 0.5 | Strut radius, as a distance in your document units. When the selected curves are all on one style, this is the only radius input and applies to every strut. When they span two or more styles, one radius input appears per style instead, named after it, so each curve builds its own thickness. Every Radius field has a Pick button that sets the radius by pointing in the viewport, with a guide circle. The options step always shows a Preview in the viewport. |
 | Node size | 1.6 | How far a joint reaches along each strut, as a multiple of the radius. Where struts of different radii meet, it is a multiple of the largest radius at that node, shared by all of them. Minimum 1.0; tight angles grow it further. |
 | Divisions | Auto | *Auto* divides curved struts just enough to follow the curve. Off: every strut gets the whole number you type. |
 | Cap | On | Rounds off free ends, so the result is a closed solid. Off leaves them open. |

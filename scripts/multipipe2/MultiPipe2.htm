@@ -24,7 +24,7 @@
 					<moi:Option value="surfaces">Cage surfaces</moi:Option>
 					<moi:Option value="solid">Cage solid</moi:Option>
 				</moi:Select></td></tr>
-			<tr id="radiustr"><td>Radius:</td><td><moi:DistanceInput id="radius" default="0.5" /></td></tr>
+			<tr id="radiustr"><td>Radius:</td><td><moi:DistanceInput id="radius" default="0.5" /><br><moi:PushButton id="pick0">Pick</moi:PushButton></td></tr>
 			<!-- Pick sits under its input, inside the same cell: a third column made the row wider than the panel. -->
 			<!-- One radius per distinct style in the selection, row n for the n-th distinct style found, revealed by
 			     MultiPipe2.js only when the selection spans two or more styles (at most eight). The rows are declared
@@ -46,6 +46,7 @@
 			<tr><td>Round joints:</td><td><moi:CheckButton id="roundJoints" default="false" onclick="moi.ui.commandUI.allNodes.disabled = !this.value;">On</moi:CheckButton></td></tr>
 			<tr><td>All nodes:</td><td><moi:CheckButton id="allNodes" default="false">On</moi:CheckButton></td></tr>
 		</table>
+		<div id="Note" class="hiddencommandui"></div>
 		<div id="Summary" class="hiddencommandui"></div>
 		<!-- Shown on the summary only: its click arrives as the event 'back', named after the id. -->
 		<div id="Back" class="hiddencommandui"><moi:PushButton id="back">Back</moi:PushButton></div>

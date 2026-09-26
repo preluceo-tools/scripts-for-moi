@@ -226,31 +226,47 @@ function planNow(input, radii) {
     tolerance: moi.geometryDatabase.tolerance });
 }
 
-// The options step of a multi-style run: waits on the panel and on the viewport in one loop. A row's Pick button
-// makes its style active; while it is, the mouse sets that row's radius to its distance from the nearest curve of the
-// style, with a guide circle across the curve there and no pipes built. A click takes the radius. Every release or
-// edit redraws the Cage curves preview (temporary; replaced each time, removed whatever ends the step).
-// Returns true on Done, false on Cancel.
+// Above this many cage faces the Preview of surfaces or a solid falls back to Cage curves: about half a second
+// a redraw for a solid, measured live on strips of 100 to 400 faces (a solid took 0.38 s at 100, 0.64 s at 200; 150 sits at about 0.5 s). Not timed on G1, G2, G7 or the 300-strut frame.
+var PREVIEW_MAX_FACES = 150;
+
+// The options step, single- and multi-style alike: waits on the panel and on the viewport in one loop. Pick 0 is
+// the single Radius, pick n the n-th style row. A row's Pick button makes it active; while it is, the mouse sets
+// that field to its distance from the nearest curve of the style, with a guide circle across the curve there and no
+// pipes built. A click takes the radius. The Preview is drawn on entry and after every release or edit (temporary;
+// replaced each time, removed whatever ends the step). Returns true on Done, false on Cancel.
 function optionsStep(curves, styles, names) {
   var ui = moi.ui, cui = ui.commandUI, VM = moi.vectorMath, gd = moi.geometryDatabase, i;
   var owners = [], input = describe(curves, owners), paths = {};
   for (i = 0; i < owners.length; i++) (paths[owners[i].styleIndex] = paths[owners[i].styleIndex] || []).push(pathOf(input[i]));
-  var pp = ui.createPointPicker(), active = 0, guide = null, preview = null;
+  var pp = ui.createPointPicker(), active = -1, guide = null, preview = null, multi = styles.length > 1;
   function P(a) { return VM.createPoint(a[0], a[1], a[2]); }
+  function field(n) { return n ? cui['style' + n + 'radius'] : cui.radius; }
+  function note(text) { if (text) { cui.Note.innerHTML = text; ui.showUI('Note'); } else ui.hideUI('Note'); }
   function clearGuide() { if (guide) { try { guide.cancel(); } catch (e) {} guide = null; } }
   function clearPreview() { if (preview) { gd.removeObjects(preview); preview = null; } }
   function refresh() {
-    clearPreview();
+    clearPreview(); note('');
     var errs = [], radii = styleRadii(owners, styles, names, errs);
     if (errs.length) return;   // a bad row is reported by name when Done is pressed
-    try { var cage = planNow(input, radii); if (!cage.report.errors.length && cage.faces.length) preview = buildCageCurves(cage); } catch (e) {}
+    try {
+      var cage = planNow(input, radii), r = cage.report, out = cui.output.value, lines = [];
+      if (r.errors.length) return;
+      if (r.jointFailures) lines.push(plural(r.jointFailures, 'joint') + ' cannot be built (' + plural(r.failedCurves.length, 'curve') + ')');
+      if (!cage.faces.length) { note(lines.join('<br>')); return; }
+      if ((out == 'surfaces' || out == 'solid') && cage.faces.length > PREVIEW_MAX_FACES) {
+        out = 'curves'; lines.push('Preview shows Cage curves: too many faces for surfaces or solid');
+      }
+      preview = out == 'surfaces' ? buildCageSurfaces(cage) : out == 'solid' ? buildCageSolid(cage) : buildCageCurves(cage);
+      note(lines.join('<br>'));
+    } catch (e) {}
   }
-  // Runs on every mouse move; the value goes into the row even at zero or below, so Done reports it like a typed one.
+  // Runs on every mouse move; the value goes into the field even at zero or below, so Done reports it like a typed one.
   function hook(picker) {
-    if (!active) return;
-    var q = picker.pt, hit = nearestOnPaths([q.x, q.y, q.z], paths[styles[active - 1]] || []);
+    if (active < 0) return;
+    var q = picker.pt, hit = nearestOnPaths([q.x, q.y, q.z], paths[styles[multi ? active - 1 : 0]] || []);
     if (!hit) return;
-    cui['style' + active + 'radius'].value = hit.dist;
+    field(active).value = hit.dist;
     if (!(hit.dist > 0)) return;
     try {
       if (!guide) { guide = moi.command.createFactory('circle'); guide.setInput(0, true); }
@@ -262,20 +278,21 @@ function optionsStep(curves, styles, names) {
   }
   cui.g_hook = hook;
   try {
+    refresh();
     while (true) {
       if (!pp.waitForEvent()) return false;
-      var ev = pp.event, m = /^pick([1-8])$/.exec(ev);
+      var ev = pp.event, m = /^pick([0-8])$/.exec(ev);
       if (ev == 'done') return true;
       if (m) { clearGuide(); active = +m[1]; pp.bindFunc(cui.OnPoint); }
       else if (ev == 'finished') {
-        hook(pp); pp.clearBindings(); clearGuide(); active = 0; ui.clearPickedPoints();
+        hook(pp); pp.clearBindings(); clearGuide(); active = -1; ui.clearPickedPoints();
         refresh();
       } else refresh();
     }
   } finally {
     cui.g_hook = null;
     try { pp.clearBindings(); } catch (e) {}
-    clearGuide(); clearPreview();
+    clearGuide(); clearPreview(); try { ui.hideUI('Note'); } catch (e) {}
   }
 }
 
@@ -287,7 +304,7 @@ function pass(curves, styles, names, seed) {
   moi.ui.commandUI.divisions.disabled = moi.ui.commandUI.auto.value;
   moi.ui.commandUI.allNodes.disabled = !moi.ui.commandUI.roundJoints.value;
   // Back is hidden on the options step, so anything but Done is Cancel.
-  if (styles.length > 1 ? !optionsStep(curves, styles, names) : waitForDone() !== true) return false;
+  if (!optionsStep(curves, styles, names)) return false;
 
   // The count before planning is the input segments; duplicates the planner drops are still in it.
   var ui = moi.ui.commandUI, cap = ui.cap.value, output = ui.output.value, owners = [], input = describe(curves, owners), segments = 0, i;
