@@ -79,14 +79,28 @@ function describe(curves, owners) {
 }
 
 // Runs fn, which adds objects to the document, and returns what it added. Both fileImportSubD and a factory's
-// commit() add objects while returning nothing useful, so the new ones are found by id.
+// commit() add objects while returning nothing useful, so the new ones are found by id. If fn throws, whatever it
+// added before the throw is removed, so a failed import or factory never leaves half a result in the document.
 function addedBy(fn) {
-  var gd = moi.geometryDatabase, before = {}, all = gd.getObjects(), added = gd.createObjectList(), i;
+  var gd = moi.geometryDatabase, before = {}, all = gd.getObjects(), added = gd.createObjectList(), ok = false, i;
   for (i = 0; i < all.length; i++) before[all.item(i).id] = true;
-  fn();
-  all = gd.getObjects();
-  for (i = 0; i < all.length; i++) if (!before[all.item(i).id]) added.addObject(all.item(i));
+  try { fn(); ok = true; } finally {
+    all = gd.getObjects();
+    for (i = 0; i < all.length; i++) if (!before[all.item(i).id]) added.addObject(all.item(i));
+    if (!ok && added.length) gd.removeObjects(added);
+  }
   return added;
+}
+
+// Why an imported pipe frame cannot be kept, or '' when it can: nothing came in, or it lies outside the cage's box.
+function badImport(objs, cage) {
+  var boxes = [], i, b;
+  if (!objs.length) return 'The SubD import produced nothing, so nothing was added.';
+  for (i = 0; i < objs.length; i++) {
+    b = objs.item(i).getBoundingBox();
+    boxes.push([b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z]);
+  }
+  return checkImport(cage.box, boxes, moi.geometryDatabase.tolerance);
 }
 
 // Writes the cage to a temp OBJ, imports it as SubD and deletes the file whatever happens.
@@ -226,12 +240,14 @@ function planNow(input, radii) {
     tolerance: moi.geometryDatabase.tolerance });
 }
 
-// Above this many cage faces the Preview of surfaces or a solid falls back to Cage curves: about half a second
-// a redraw for a solid, measured live on strips of 100 to 400 faces (a solid took 0.38 s at 100, 0.64 s at 200; 150 sits at about 0.5 s). Not timed on G1, G2, G7 or the 300-strut frame.
-var PREVIEW_MAX_FACES = 150;
-// Above this many cage faces a Pipe frame Preview is Cage curves, not the SubD pipe frame: the import costs about 4 ms
-// a face, measured live on grids (42 faces 0.21 s, 112 0.47 s, 294 1.3 s, 2830 15.5 s), so 200 keeps a redraw under a second.
-var PREVIEW_MAX_SUBD_FACES = 200;
+// Above this many faces, counted on what the Output would draw, the Preview falls back to Cage curves.
+// solid, surfaces: about half a second a redraw, measured live on strips of 100 to 400 faces (a solid took 0.38 s
+//   at 100, 0.64 s at 200).
+// frame: the SubD import costs roughly 4 to 5 ms a face, measured live on grids at Radius 1 (42 faces 0.21 s,
+//   112 0.47 s, 294 1.3 s, 2830 15.5 s), so 200 keeps a redraw under a second. Not timed with Round joints or high
+//   Divisions.
+var PREVIEW_MAX_FACES = { frame: 200, surfaces: 150, solid: 150 };
+var PREVIEW_NAMES = { frame: 'a pipe frame', surfaces: 'surfaces', solid: 'a solid' };
 
 // The options step, single- and multi-style alike: waits on the panel and on the viewport in one loop. Pick 0 is
 // the single Radius, pick n the n-th style row. A row's Pick button makes it active; while it is, the mouse sets
@@ -257,20 +273,21 @@ function optionsStep(curves, styles, names) {
       if (r.errors.length) return;
       if (r.jointFailures) lines.push(plural(r.jointFailures, 'joint') + ' cannot be built (' + plural(r.failedCurves.length, 'curve') + ')');
       if (!cage.faces.length) { note(lines.join('<br>')); return; }
-      if (out == 'frame') {
-        var build = r.jointFailures ? cage.partial : cage;
-        if (build.faces.length && build.faces.length <= PREVIEW_MAX_SUBD_FACES) {
-          preview = importCage(build);
-          note(lines.join('<br>'));
-          return;
+      // Any Output but Cage curves may fall back to Cage curves, always with a line saying why.
+      var build = out == 'frame' && r.jointFailures ? cage.partial : cage, why = '';
+      if (out != 'curves') {
+        if (!build.faces.length) why = 'no pipe frame can be built';
+        else if (build.faces.length > PREVIEW_MAX_FACES[out]) why = 'too many faces for ' + PREVIEW_NAMES[out];
+        else {
+          try {
+            preview = out == 'frame' ? importCage(build) : out == 'surfaces' ? buildCageSurfaces(cage) : buildCageSolid(cage);
+            if (out == 'frame' && badImport(preview, build)) { gd.removeObjects(preview); preview = null; }
+          } catch (e) { preview = null; }
+          if (!preview || !preview.length) { preview = null; why = PREVIEW_NAMES[out] + ' could not be drawn'; }
         }
-        out = 'curves';
-        if (build.faces.length) lines.push('Preview shows Cage curves: too many faces for a pipe frame');
       }
-      if ((out == 'surfaces' || out == 'solid') && cage.faces.length > PREVIEW_MAX_FACES) {
-        out = 'curves'; lines.push('Preview shows Cage curves: too many faces for surfaces or solid');
-      }
-      preview = out == 'surfaces' ? buildCageSurfaces(cage) : out == 'solid' ? buildCageSolid(cage) : buildCageCurves(cage);
+      if (!preview) preview = buildCageCurves(cage);
+      if (why) lines.push('Preview shows Cage curves: ' + why);
       note(lines.join('<br>'));
     } catch (e) {}
   }
@@ -343,14 +360,8 @@ function pass(curves, styles, names, seed) {
     var build = r.jointFailures ? cage.partial : cage;
     if (!build.faces.length) return stop('No pipe frame could be built: every one of them has a joint whose struts meet at too tight an angle.' + failures);
     objs = importCage(build);
-    var boxes = [];
-    if (!objs.length) return stop('The SubD import produced nothing, so nothing was added.');
-    for (i = 0; i < objs.length; i++) {
-      var b = objs.item(i).getBoundingBox();
-      boxes.push([b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z]);
-    }
-    var bad = checkImport(build.box, boxes, moi.geometryDatabase.tolerance);
-    if (bad) { moi.geometryDatabase.removeObjects(objs); return stop(bad); }
+    var bad = badImport(objs, build);
+    if (bad) { if (objs.length) moi.geometryDatabase.removeObjects(objs); return stop(bad); }
   } else if (output == 'surfaces') {
     objs = buildCageSurfaces(cage);
     notes = plural(objs.length, 'cage surface') + ' for ' + plural(cage.faces.length, 'cage face') + '.<br>';

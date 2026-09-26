@@ -22,7 +22,7 @@
 </head>
 <body>
 
-<h1>MultiPipe2 1.1.6</h1>
+<h1>MultiPipe2 1.1.7</h1>
 <p class="lead">Turn a network of curves into a smooth pipe frame, inside MoI, in a single step.</p>
 <p>This is the full reference. For a shorter, more visual overview &mdash; and how MultiPipe2
 compares to Rhino's own native <code>MultiPipe</code> command &mdash; see the
@@ -213,9 +213,11 @@ style name when you press Done, like a typed zero.</p>
 as the options appear and redrawn after every change to Radius, Node size, Divisions, Cap, Round joints, All nodes
 and Output, and after every pick. It follows the <em>Output</em>: <em>Cage surfaces</em> and <em>Cage solid</em>
 are drawn as chosen, <em>Cage curves</em> as Cage curves, and <em>Pipe frame</em> as the smooth pipe frame itself.
-The pipe frame takes MoI about 4 ms per cage face to draw, so when the cage has more than 200 faces (a cube frame
-has 112) the Preview shows Cage curves instead and the panel says so. Surfaces and solid are drawn faster, and fall
-back to Cage curves above 150 faces. Whatever the Preview shows, the build on Done still makes the Output you chose.
+The pipe frame takes MoI roughly 4 to 5 ms per cage face to draw, so when the cage has more than 200 faces (a cube
+frame has 112) the Preview shows Cage curves instead. <em>Cage surfaces</em> and <em>Cage solid</em> fall back to
+Cage curves above 150 faces. The Preview also shows Cage curves when no pipe frame can be built, or when the chosen
+Output cannot be drawn. Each time it falls back, the panel says why in one line. Whatever the Preview shows, the
+build on Done still makes the Output you chose.
  If some joints cannot be built, the panel says how many joints and curves are affected; the
 selection changes only after the build. A radius that is not valid, or curves that make no faces, leave the Preview
 empty. The Preview and the guide circle are removed before the result is built, and on <em>Back</em> and
