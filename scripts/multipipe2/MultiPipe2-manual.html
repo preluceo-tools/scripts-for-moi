@@ -22,7 +22,7 @@
 </head>
 <body>
 
-<h1>MultiPipe2 1.1.3</h1>
+<h1>MultiPipe2 1.1.4</h1>
 <p class="lead">Turn a network of curves into a smooth pipe frame, inside MoI, in a single step.</p>
 <p>This is the full reference. For a shorter, more visual overview &mdash; and how MultiPipe2
 compares to Rhino's own native <code>MultiPipe</code> command &mdash; see the
@@ -201,6 +201,15 @@ it is on &mdash; the styles in the scene browser, the ones that colour your curv
   <li>The options step shows <strong>one Radius field per style in your selection</strong>, in the
     <em>MultiPipe2</em> options panel above <em>Node size</em>, each labelled with that style's name and a colon. Set them and press Done.</li>
 </ol>
+
+<p>Instead of typing, each field has a <em>Pick</em> button beside it. Press it, then move the pointer over the
+viewport: the field shows the distance from the pointer to the nearest curve of that style, and a guide circle
+across that curve follows the pointer at that radius. No pipes are built while you move. Click to take the radius.
+After every click and every typed value, the <em>Cage curves</em> shape for the current radii is drawn as a
+preview, replacing the previous one. The preview and the guide circle are removed before the result is built,
+and on <em>Back</em> and <em>Cancel</em>; they are never left in your document. Typing and picking set the same
+field, and the last one wins. A pick that lands at zero distance is reported by style name when you press Done,
+like a typed zero.</p>
 
 <p>Notes:</p>
 
@@ -401,7 +410,7 @@ a pipe frame of 300 struts, the cage curves &mdash; one closed curve per face, o
 the same cages and on the 300-strut frame, with the construction curves gone afterwards. A frame built with a radius per curve is covered both ways: the ring widths, the node offset and the reported reach in the cage tests, and a mixed-radius scene put through the real SubD import.</p>
 
 <p><strong>Checked by hand only, so worth a careful first look:</strong> the command panel (option fields,
-the greyed-out <em>Divisions</em> field, the <em>Output</em> list, the per-style Radius fields and their labels,
+the greyed-out <em>Divisions</em> field, the <em>Output</em> list, the per-style Radius fields, their labels and <em>Pick</em> buttons, the guide circle and the preview,
 prompts, the summary, <em>Done</em>, <em>Back</em>
 and <em>Cancel</em>, values
 remembered between runs), one <kbd>Ctrl</kbd>+<kbd>Z</kbd> removing the whole result, installing and running

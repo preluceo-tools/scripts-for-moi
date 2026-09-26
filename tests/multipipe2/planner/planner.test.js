@@ -1,7 +1,7 @@
 // MultiPipe2 planner tests. Run from the repo root: node --test
 const test = require('node:test');
 const assert = require('node:assert');
-const { plan, objLines, checkImport } = require('../../../scripts/multipipe2/MultiPipe2Planner.js');
+const { plan, objLines, checkImport, nearestOnPaths, pathOf, perpAxes } = require('../../../scripts/multipipe2/MultiPipe2Planner.js');
 const scenes = require('../scenes/scenes.json');
 const v1Scenes = require('../../multipipe/scenes/scenes.json');
 
@@ -644,4 +644,38 @@ test('no failures leaves the report and the cage untouched (ticket 13)', () => {
   assert.strictEqual(r.framesDropped, 0);
   assert.deepStrictEqual(r.failedCurves, []);
   assert.strictEqual(cage.partial, null);
+});
+
+// Radius by dragging (ticket 22): distance to the nearest input curve of a style, and the guide circle's plane.
+test('nearestOnPaths: distance, foot point and tangent of the nearest segment', () => {
+  const paths = [pathOf({ kind: 'polyline', points: [[0, 0, 0], [10, 0, 0], [10, 10, 0]] }), pathOf({ kind: 'line', start: [0, 5, 0], end: [0, 5, 10] })];
+  const a = nearestOnPaths([4, 3, 0], paths);
+  assert.strictEqual(a.dist, 3);   // the x axis at 3, the vertical line at 4
+  assert.deepStrictEqual(nearestOnPaths([4, 3, 0], [paths[0]]).point, [4, 0, 0]);
+  assert.strictEqual(nearestOnPaths([4, 3, 0], [paths[0]]).dist, 3);
+  const b = nearestOnPaths([12, 6, 0], [paths[0]]);   // beside the second segment
+  assert.deepStrictEqual([b.dist, b.point, b.tangent], [2, [10, 6, 0], [0, 1, 0]]);
+  assert.strictEqual(nearestOnPaths([0, 0, 5], [paths[0]]).dist, 5);   // above the corner end: clamped, not extended
+  assert.strictEqual(nearestOnPaths([-3, 0, 4], [paths[0]]).dist, 5);
+  assert.strictEqual(nearestOnPaths([0, 0, 0], []), null);
+  assert.strictEqual(nearestOnPaths([0, 0, 0], [[[1, 1, 1]], [[2, 2, 2], [2, 2, 2]]]), null);
+  assert.strictEqual(nearestOnPaths([1, 0, 0], [pathOf({ kind: 'smooth', samples: [[0, 0, 0], [0, 1, 0]] })]).dist, 1);
+});
+
+test('perpAxes: unit, mutually perpendicular, perpendicular to the tangent', () => {
+  for (const t of [[1, 0, 0], [0, 1, 0], [0, 0, 1], [0.6, 0, 0.8], [0.577350269, 0.577350269, 0.577350269]]) {
+    const [u, v] = perpAxes(t);
+    for (const [x, y] of [[u, v], [u, t], [v, t]]) assert.ok(Math.abs(dot(x, y)) < 1e-6);
+    assert.ok(Math.abs(dot(u, u) - 1) < 1e-9 && Math.abs(dot(v, v) - 1) < 1e-9);
+    assert.ok(dot(cross(u, v), t) > 0.999);
+  }
+});
+
+test('a dragged radius drives the plan like a typed one, per style', () => {
+  const input = lines(scenes.cubeframe);
+  const radii = input.map((_, i) => (i % 2 ? 0.7 : 1.3));
+  const cage = plan(input, { ...opts, radii });
+  assert.strictEqual(cage.report.errors.length, 0);
+  assert.ok(cage.faces.length > 0);
+  assert.ok(plan(input, { ...opts, radii: radii.map(() => 0) }).report.errors.length > 0);
 });

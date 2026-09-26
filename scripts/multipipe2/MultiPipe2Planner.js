@@ -544,4 +544,36 @@ function checkImport(cageBox, boxes, tolerance) {
     'Check that MoI\'s SubD import ScaleFactor setting is 1.';
 }
 
-if (typeof module !== 'undefined') module.exports = { plan: plan, objLines: objLines, checkImport: checkImport };
+// Radius by dragging: the point on the input paths nearest to p. paths is a list of point lists (each an array of
+// [x, y, z], read as a polyline); returns { dist, point, tangent } with tangent the unit direction of the nearest
+// segment, or null when no path has a segment. Curved input is already sampled by describe(), so this is a
+// polyline query. ponytail: linear scan over every segment, fine for hand-drawn frames, a grid if one style holds thousands.
+function nearestOnPaths(p, paths) {
+  var best = null, i, j, k;
+  for (i = 0; i < paths.length; i++) for (j = 0; j + 1 < paths[i].length; j++) {
+    var a = paths[i][j], b = paths[i][j + 1], d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], len2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+    if (!(len2 > 0)) continue;
+    var t = Math.max(0, Math.min(1, ((p[0] - a[0]) * d[0] + (p[1] - a[1]) * d[1] + (p[2] - a[2]) * d[2]) / len2)), q = [], dist = 0;
+    for (k = 0; k < 3; k++) { q.push(a[k] + t * d[k]); dist += (p[k] - q[k]) * (p[k] - q[k]); }
+    dist = Math.sqrt(dist);
+    if (!best || dist < best.dist) { var l = Math.sqrt(len2); best = { dist: dist, point: q, tangent: [d[0] / l, d[1] / l, d[2] / l] }; }
+  }
+  return best;
+}
+
+// The point list of one planner input entry, for nearestOnPaths.
+function pathOf(e) {
+  return e.kind == 'line' ? [e.start, e.end] : e.kind == 'polyline' ? e.points : e.samples;
+}
+
+// Two unit vectors u, v with u x v = t, spanning the plane perpendicular to the unit vector t: a circle drawn
+// on them stands across the curve.
+function perpAxes(t) {
+  var h = Math.abs(t[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+  var u = [t[1] * h[2] - t[2] * h[1], t[2] * h[0] - t[0] * h[2], t[0] * h[1] - t[1] * h[0]];
+  var l = Math.sqrt(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+  u = [u[0] / l, u[1] / l, u[2] / l];
+  return [u, [t[1] * u[2] - t[2] * u[1], t[2] * u[0] - t[0] * u[2], t[0] * u[1] - t[1] * u[0]]];
+}
+
+if (typeof module !== 'undefined') module.exports = { plan: plan, objLines: objLines, checkImport: checkImport, nearestOnPaths: nearestOnPaths, pathOf: pathOf, perpAxes: perpAxes };

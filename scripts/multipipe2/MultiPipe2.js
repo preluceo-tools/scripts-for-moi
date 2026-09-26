@@ -214,6 +214,70 @@ function markFailed(curves, owners, failed) {
   }
 }
 
+// Plans the input with the panel's current values. The single Radius is hidden while the per-style rows are up, so
+// it must not be what the planner validates: a zero left in it by an earlier run would be an error about a field the
+// user cannot see. On a multi-style run the first row stands in for it, and every strut has its own radius anyway.
+function planNow(input, radii) {
+  var ui = moi.ui.commandUI;
+  return plan(input, { radius: radii && radii.length ? radii[0] : ui.radius.value, radii: radii, nodeSize: ui.nodesize.value,
+    divisions: ui.auto.value ? 'auto' : ui.divisions.value, cap: ui.cap.value,
+    roundJoints: ui.roundJoints.value, allNodes: ui.allNodes.value,
+    tolerance: moi.geometryDatabase.tolerance });
+}
+
+// The options step of a multi-style run: waits on the panel and on the viewport in one loop. A row's Pick button
+// makes its style active; while it is, the mouse sets that row's radius to its distance from the nearest curve of the
+// style, with a guide circle across the curve there and no pipes built. A click takes the radius. Every release or
+// edit redraws the Cage curves preview (temporary; replaced each time, removed whatever ends the step).
+// Returns true on Done, false on Cancel.
+function optionsStep(curves, styles, names) {
+  var ui = moi.ui, cui = ui.commandUI, VM = moi.vectorMath, gd = moi.geometryDatabase, i;
+  var owners = [], input = describe(curves, owners), paths = {};
+  for (i = 0; i < owners.length; i++) (paths[owners[i].styleIndex] = paths[owners[i].styleIndex] || []).push(pathOf(input[i]));
+  var pp = ui.createPointPicker(), active = 0, guide = null, preview = null;
+  function P(a) { return VM.createPoint(a[0], a[1], a[2]); }
+  function clearGuide() { if (guide) { try { guide.cancel(); } catch (e) {} guide = null; } }
+  function clearPreview() { if (preview) { gd.removeObjects(preview); preview = null; } }
+  function refresh() {
+    clearPreview();
+    var errs = [], radii = styleRadii(owners, styles, names, errs);
+    if (errs.length) return;   // a bad row is reported by name when Done is pressed
+    try { var cage = planNow(input, radii); if (!cage.report.errors.length && cage.faces.length) preview = buildCageCurves(cage); } catch (e) {}
+  }
+  // Runs on every mouse move; the value goes into the row even at zero or below, so Done reports it like a typed one.
+  function hook(picker) {
+    if (!active) return;
+    var q = picker.pt, hit = nearestOnPaths([q.x, q.y, q.z], paths[styles[active - 1]] || []);
+    if (!hit) return;
+    cui['style' + active + 'radius'].value = hit.dist;
+    if (!(hit.dist > 0)) return;
+    try {
+      if (!guide) { guide = moi.command.createFactory('circle'); guide.setInput(0, true); }
+      var ax = perpAxes(hit.tangent);
+      guide.setInput(1, VM.createFrame(P(hit.point), P(ax[0]), P(ax[1])));
+      guide.setInput(3, hit.dist);
+      guide.update();
+    } catch (e) {}
+  }
+  cui.g_hook = hook;
+  try {
+    while (true) {
+      if (!pp.waitForEvent()) return false;
+      var ev = pp.event, m = /^pick([1-8])$/.exec(ev);
+      if (ev == 'done') return true;
+      if (m) { clearGuide(); active = +m[1]; pp.bindFunc(cui.OnPoint); }
+      else if (ev == 'finished') {
+        hook(pp); pp.clearBindings(); clearGuide(); active = 0; ui.clearPickedPoints();
+        refresh();
+      } else refresh();
+    }
+  } finally {
+    cui.g_hook = null;
+    try { pp.clearBindings(); } catch (e) {}
+    clearGuide(); clearPreview();
+  }
+}
+
 // One pass over the options, the build and the summary. Returns what the user ended it on: true for Done,
 // 'back' for the Back button, false for Cancel. Anything the pass added is removed unless it ended on Done.
 function pass(curves, styles, names, seed) {
@@ -221,7 +285,8 @@ function pass(curves, styles, names, seed) {
   showStyleRows(styles, names, seed);
   moi.ui.commandUI.divisions.disabled = moi.ui.commandUI.auto.value;
   moi.ui.commandUI.allNodes.disabled = !moi.ui.commandUI.roundJoints.value;
-  if (waitForDone() !== true) return false;   // Back is hidden on the options step, so this is Cancel.
+  // Back is hidden on the options step, so anything but Done is Cancel.
+  if (styles.length > 1 ? !optionsStep(curves, styles, names) : waitForDone() !== true) return false;
 
   // The count before planning is the input segments; duplicates the planner drops are still in it.
   var ui = moi.ui.commandUI, cap = ui.cap.value, output = ui.output.value, owners = [], input = describe(curves, owners), segments = 0, i;
@@ -229,14 +294,7 @@ function pass(curves, styles, names, seed) {
   var rowErrors = [], radii = styleRadii(owners, styles, names, rowErrors);
   if (rowErrors.length) return stop(rowErrors.join('<br>'));
   show('BuildingPrompt', 'Building ' + plural(segments, 'strut') + '...');
-  // The single Radius is hidden while the per-style rows are up, so it must not be what the planner validates:
-  // a zero left in it by an earlier run would be an error about a field the user cannot see. On a multi-style run
-  // the first row stands in for it, and every strut has its own radius anyway.
-  var fallback = radii && radii.length ? radii[0] : ui.radius.value;
-  var cage = plan(input, { radius: fallback, radii: radii, nodeSize: ui.nodesize.value,
-    divisions: ui.auto.value ? 'auto' : ui.divisions.value, cap: cap,
-    roundJoints: ui.roundJoints.value, allNodes: ui.allNodes.value,
-    tolerance: moi.geometryDatabase.tolerance });
+  var cage = planNow(input, radii);
   var r = cage.report, frame = output == 'frame', objs, notes = '';
   if (r.errors.length) return stop(r.errors.join('<br>'));
   // The radii actually built, for the summary; only worth saying when they differ.
