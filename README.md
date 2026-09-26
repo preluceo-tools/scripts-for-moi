@@ -49,7 +49,7 @@ geometry commands.
 
 | Script | Download | Manual |
 |---|---|---|
-| **MultiPipe2** 1.1.7 | **[MultiPipe2.zip](https://github.com/preluceo-tools/scripts-for-moi/raw/main/dist/MultiPipe2.zip)** (51 KB) | [README](scripts/multipipe2/README.md) · [Manual](https://htmlpreview.github.io/?https://github.com/preluceo-tools/scripts-for-moi/blob/main/scripts/multipipe2/MultiPipe2-manual.html) |
+| **MultiPipe2** 1.1.7 | **[MultiPipe2-1.1.7.zip](https://github.com/preluceo-tools/scripts-for-moi/releases/download/multipipe2-v1.1.7/MultiPipe2-1.1.7.zip)** (51 KB) · [all versions](https://github.com/preluceo-tools/scripts-for-moi/releases) | [README](scripts/multipipe2/README.md) · [Manual](https://htmlpreview.github.io/?https://github.com/preluceo-tools/scripts-for-moi/blob/main/scripts/multipipe2/MultiPipe2-manual.html) |
 | **MultiPipe** | **[MultiPipe.zip](https://github.com/preluceo-tools/scripts-for-moi/raw/main/dist/MultiPipe.zip)** (29 KB) | [Manual](https://htmlpreview.github.io/?https://github.com/preluceo-tools/scripts-for-moi/blob/main/scripts/multipipe/MultiPipe-manual.html) |
 
 The zip holds the command files, the manual and the licence. Unzip it and follow
@@ -226,7 +226,7 @@ To uninstall, delete the files again.
 ```text
 scripts/<name>/      the files you copy into MoI's commands folder, and its manual
 tests/<name>/        its tests
-dist/<name>.zip      the packaged download
+dist/<name>-<version>.zip   the packaged download, one per version
 sample-videos-...   screen recordings of the scripts in action, one per script
 ```
 
@@ -259,11 +259,12 @@ own machine. Write your own:
 
 The command panel can't be driven from a script at all — see [Testing status](#testing-status).
 
-Repackaging a script's zip after a change (PowerShell):
+Repackaging a script's zip after a change (PowerShell). Bump the version first; earlier zips stay
+in `dist/` as history:
 
 ```powershell
 Compress-Archive -Path scripts/multipipe/* -DestinationPath dist/MultiPipe.zip -Force
-Compress-Archive -Path scripts/multipipe2/* -DestinationPath dist/MultiPipe2.zip -Force
+Compress-Archive -Path scripts/multipipe2/* -DestinationPath dist/MultiPipe2-<version>.zip
 ```
 
 > [!NOTE]
