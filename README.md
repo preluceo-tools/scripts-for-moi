@@ -50,7 +50,7 @@ geometry commands.
 | Script | Download | Manual |
 |---|---|---|
 | **MultiPipe2** 1.1.7 | **[MultiPipe2-1.1.7.zip](https://github.com/preluceo-tools/scripts-for-moi/releases/download/multipipe2-v1.1.7/MultiPipe2-1.1.7.zip)** (51 KB) · [all versions](https://github.com/preluceo-tools/scripts-for-moi/releases) | [README](scripts/multipipe2/README.md) · [Manual](https://htmlpreview.github.io/?https://github.com/preluceo-tools/scripts-for-moi/blob/main/scripts/multipipe2/MultiPipe2-manual.html) |
-| **MultiPipe** | **[MultiPipe.zip](https://github.com/preluceo-tools/scripts-for-moi/raw/main/dist/MultiPipe.zip)** (29 KB) | [Manual](https://htmlpreview.github.io/?https://github.com/preluceo-tools/scripts-for-moi/blob/main/scripts/multipipe/MultiPipe-manual.html) |
+| **MultiPipe** 1.0.0 (final) | **[MultiPipe-1.0.0.zip](https://github.com/preluceo-tools/scripts-for-moi/releases/download/multipipe-v1.0.0/MultiPipe-1.0.0.zip)** (31 KB) | [README](scripts/multipipe/README.md) · [Manual](https://htmlpreview.github.io/?https://github.com/preluceo-tools/scripts-for-moi/blob/main/scripts/multipipe/MultiPipe-manual.html) |
 
 The zip holds the command files, the manual and the licence. Unzip it and follow
 [Installing a script](#installing-a-script) — it takes about a minute.
@@ -97,6 +97,9 @@ what happens at tight angles.
 
 **Turns a network of curves into one solid pipe frame, in a single step.**
 
+> [!IMPORTANT]
+> MultiPipe is no longer being developed. 1.0.0 is its final version; use MultiPipe2 for new work.
+
 Select any set of curves and run `MultiPipe`. It sweeps a pipe along every curve, puts a joint
 wherever strut ends meet, and unions the lot into one closed solid. Your input curves are kept, and
 one <kbd>Ctrl</kbd>+<kbd>Z</kbd> takes the whole result back.
@@ -124,7 +127,8 @@ one <kbd>Ctrl</kbd>+<kbd>Z</kbd> takes the whole result back.
 falls back to ball joints; filleted joints can take minutes on a dense frame; the pipes are solid,
 not hollow; there is no live preview; one radius applies to the whole frame.
 
-The [manual](scripts/multipipe/MultiPipe-manual.html) documents every option, every message and every
+The [README](scripts/multipipe/README.md) has the overview and version history; the
+[manual](scripts/multipipe/MultiPipe-manual.html) documents every option, every message and every
 warning in full, and [`sample-videos-scripts-in-action/`](sample-videos-scripts-in-action/) holds a
 screen recording of a run.
 
@@ -150,8 +154,8 @@ curves in a live document, and macOS.
 
 ### MultiPipe
 
-A first release. Its geometry is well covered; its command panel is not, because MoI's command
-panel cannot be driven by a script — only by a person at the keyboard.
+The final release, frozen at 1.0.0. Its geometry is well covered; its command panel is not,
+because MoI's command panel cannot be driven by a script — only by a person at the keyboard.
 
 **Tested automatically, on every change:** the planning — which curve becomes which strut, where
 nodes are, straight nodes, closed curves, duplicates, crossings (22 tests) — and the geometry, by
@@ -263,7 +267,7 @@ Repackaging a script's zip after a change (PowerShell). Bump the version first; 
 in `dist/` as history:
 
 ```powershell
-Compress-Archive -Path scripts/multipipe/* -DestinationPath dist/MultiPipe.zip -Force
+Compress-Archive -Path scripts/multipipe/* -DestinationPath dist/MultiPipe-<version>.zip
 Compress-Archive -Path scripts/multipipe2/* -DestinationPath dist/MultiPipe2-<version>.zip
 ```
 
