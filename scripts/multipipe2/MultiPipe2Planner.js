@@ -8,13 +8,13 @@
 //            zero-length segments inside it are skipped. A smooth curve is one strut through its samples (dense, by
 //            arc length; the tangents are optional and default to the end chords). A smooth curve whose ends meet
 //            is a closed ring: with nothing else at its seam it is a closed tube with no node.
-//   options: { radius, nodeSize, divisions, cap, tolerance, roundJoints, allNodes }  nodeSize >= 1.0; cap defaults
+//   options: { radius, radii, nodeSize, divisions, cap, tolerance, roundJoints, allNodes }  nodeSize >= 1.0; cap defaults
 //            to true; divisions 'auto' (the default: straight struts get no extra rings, curved struts the fewest
 //            evenly spaced rings that keep the curve's turn between consecutive rings within TURN) or a whole
 //            number N >= 0, the extra rings on every strut, spaced evenly between its end rings (after any
 //            free-end ring); a closed tube gets N + 1 rings, at least 3. roundJoints (default false): every node
 //            that grew (report.grownNodes) gets one extra plain ring per strut, at least w further inboard than
-//            the joint ring (more, scaling with how far the node grew past nodeSize x radius, so a heavily grown
+//            the joint ring (more, scaling with how far the node grew past its nodeSize offset, so a heavily grown
 //            node gets a gentler taper), to hold the SubD limit surface round at a pinched joint without
 //            overshooting past it; skipped at a strut too short to fit it. allNodes (default false, no effect
 //            unless roundJoints is true): every multi-strut node gets the collar, not just grown ones. A node
@@ -22,14 +22,26 @@
 //            node's own point, four triangles per incident strut) instead of the flat hull, so the corner
 //            reads as a crisp miter point instead of pinching; skipped (falling back to the flat hull) if the
 //            fan would self-intersect or invert, counted in report.roundedNodes / report.roundedNodeFallbacks.
+//            radii (optional): a radius per entry in curves, so each curve builds its own thickness; an entry left
+//            out falls back to radius, and an entry that is there but not greater than zero is an error, as radius
+//            itself is. Every per-strut quantity (ring half-width, the
+//            free-end extra ring, the short-strut check, the round-joints collar floor) follows the strut's own
+//            radius; every per-node quantity (the reach floor and the growth bound) uses the largest radius meeting
+//            at that node, because the bound is derived assuming both rings of a pair sit at one offset. With every
+//            radius equal this is exactly the single-radius build. See docs/adr/0003-multipipe2-per-curve-radius.md:
+//            the joint is the convex hull of the incident rings' corners, so mixed radii need no taper, no unified
+//            radius at a node and no rejection.
 //   returns: { vertices: [[x,y,z], ...], faces: [[i, j, k, l], ...], box: [minX, minY, minZ, maxX, maxY, maxZ],
 //              partial: the same three fields with every pipe frame holding an unbuildable joint dropped (null when
 //                       none failed; its faces may be empty when every frame failed),
-//              report: { pipeFrames, struts, nodes, freeEnds, duplicatesDropped, crossings, grownNodes, largestReach,
+//              report: { pipeFrames, struts, nodes, freeEnds, duplicatesDropped, duplicateRadii, crossings, grownNodes, largestReach,
 //                        shortStruts, roundedNodes, roundedNodeFallbacks, jointFailures, framesDropped, failedCurves,
 //                        errors, warnings } }
 //   Endpoints within tolerance are one node.
 //   duplicatesDropped: segments dropped because an earlier one has the same ends (either direction) and shape.
+//   duplicateRadii: of those, the ones whose radius differed from the segment kept, so the surviving thickness
+//              depended on selection order. The first selected is still the one kept; the count is there for the
+//              command to warn with, because otherwise the output turns on pick order invisibly.
 //   crossings: strut pairs that pass within tolerance of each other away from their ends; left unjoined, one
 //              warning each.
 //   jointFailures: nodes whose joint could not be built, counted once each however many struts meet there. Kept
@@ -37,9 +49,10 @@
 //                those frames and keeps the rest, and a cage output draws the whole cage.
 //   framesDropped: pipe frames `partial` leaves out, one per connected group holding a failed joint.
 //   failedCurves: indices into `curves` of every input entry with a strut at a failed joint, ascending.
-//   largestReach: the largest ring offset at a grown node, as a factor of radius (0 when none grew).
+//   largestReach: the largest ring offset at a grown node, as a factor of that node's own largest incident radius
+//              (0 when none grew).
 //   shortStruts: struts shorter than the ring offsets at their two ends (still built).
-//   The cage: a square ring (half-width radius / 0.93) at the node's ring offset (along the curve) from every node
+//   The cage: a square ring (half-width the strut's own radius / 0.93) at the node's ring offset (along the curve) from every node
 //   on each strut, framed by a rotation-minimising frame carried along the curve from the start's reference rule,
 //   the convex hull of a node's rings (ring facets removed) as its joint, or, at a qualifying roundJoints node,
 //   an apex-vertex fan at the node's own point instead; quad tubes between rings; and at a free end an end
@@ -189,18 +202,23 @@ function orient(V, F, group) {
 }
 
 function plan(curves, options) {
-  var R = options.radius, tol = options.tolerance, cap = options.cap !== false, i, j, k;
+  var R = options.radius, radii = options.radii, tol = options.tolerance, cap = options.cap !== false, i, j, k;
   var V = [], F = [];
-  var report = { pipeFrames: 0, struts: 0, nodes: 0, freeEnds: 0, duplicatesDropped: 0, crossings: 0, grownNodes: 0, largestReach: 0, shortStruts: 0,
+  var report = { pipeFrames: 0, struts: 0, nodes: 0, freeEnds: 0, duplicatesDropped: 0, duplicateRadii: 0, crossings: 0, grownNodes: 0, largestReach: 0, shortStruts: 0,
     roundedNodes: 0, roundedNodeFallbacks: 0, jointFailures: 0, framesDropped: 0, failedCurves: [], errors: [], warnings: [] };
   var out = { vertices: V, faces: F, box: null, partial: null, report: report };
+  // The radius of the curve entry a strut came from: its own when radii gives one, else the single radius.
+  function radiusOf(src) { return radii && radii[src] !== undefined ? radii[src] : R; }
   if (!(R > 0)) report.errors.push('Radius must be greater than zero.');
+  if (radii) for (i = 0; i < radii.length; i++) if (radii[i] !== undefined && !(radii[i] > 0)) { report.errors.push('Radius must be greater than zero.'); break; }
   if (!(options.nodeSize >= 1)) report.errors.push('Node size must be at least 1.0.');
   var divs = options.divisions === undefined || options.divisions === 'auto' ? 0 : options.divisions;
   if (!(typeof divs === 'number' && isFinite(divs) && divs >= 0 && Math.floor(divs) === divs)) report.errors.push('Divisions must be a whole number of 0 or more.');
   if (!curves || !curves.length) report.errors.push('Select at least one curve.');
   if (report.errors.length) return out;
-  var w = R * WIDTH, d0 = options.nodeSize * R;
+  // Per strut, from its own curve's radius; per node, from the largest radius meeting there (see the header).
+  function strutR(si) { return radiusOf(srcs[si]); }
+  function nodeR(nid) { var m = 0; for (var q = 0; q < inc[nid].length; q++) m = Math.max(m, strutR(inc[nid][q].si)); return m; }
 
   // ponytail: O(n^2) endpoint clustering, a spatial hash when large frames need it.
   var points = [], inc = [], struts = [], tracks = [], srcs = [];
@@ -218,17 +236,20 @@ function plan(curves, options) {
     return add(p, mul(sub(q, p), u));
   }
   function near(p, q) { return len(sub(p, q)) <= tol; }
-  function isDuplicate(a, b, samples) {
+  function isDuplicate(a, b, samples, rad) {
     var m = [at(samples, 0.25), at(samples, 0.5), at(samples, 0.75)];
     for (var d = 0; d < kept.length; d++) {
       var q = kept[d], forward = near(q.a, a) && near(q.b, b), back = near(q.a, b) && near(q.b, a);
       if (!near(q.m[1], m[1])) continue;
       if (forward && near(q.m[0], m[0]) && near(q.m[2], m[2]) || back && near(q.m[0], m[2]) && near(q.m[2], m[0])) {
         report.duplicatesDropped++;
+        // The first selected is kept, as it always was, but with a radius per curve the survivor's thickness now
+        // depends on selection order, so a dropped duplicate that carried a different radius says so.
+        if (Math.abs(q.r - rad) > 1e-12) report.duplicateRadii++;
         return true;
       }
     }
-    kept.push({ a: a, b: b, m: m });
+    kept.push({ a: a, b: b, m: m, r: rad });
     return false;
   }
   // src: the index in curves of the entry this strut came from, so a failed joint can name its input curves.
@@ -244,13 +265,13 @@ function plan(curves, options) {
     if (c.kind === 'smooth') {
       var tr = pts.length > 1 ? track(pts, c.startTangent, c.endTangent) : null;
       if (!tr || tr.L <= tol) { report.errors.push('Curve ' + (i + 1) + ' has zero length.'); continue; }
-      if (!isDuplicate(tr.p[0], tr.p[tr.p.length - 1], tr.p)) addStrut(tr, i);
+      if (!isDuplicate(tr.p[0], tr.p[tr.p.length - 1], tr.p, radiusOf(i))) addStrut(tr, i);
       continue;
     }
     for (j = 0; j + 1 < pts.length; j++) {
       if (near(pts[j], pts[j + 1])) continue;
       nonZero = true;
-      if (!isDuplicate(pts[j], pts[j + 1], [pts[j], pts[j + 1]])) addStrut(track([pts[j], pts[j + 1]]), i);
+      if (!isDuplicate(pts[j], pts[j + 1], [pts[j], pts[j + 1]], radiusOf(i))) addStrut(track([pts[j], pts[j + 1]]), i);
     }
     if (!nonZero) report.errors.push('Curve ' + (i + 1) + ' has zero length.');
   }
@@ -281,22 +302,26 @@ function plan(curves, options) {
     }
   }
 
-  // One ring offset per node, shared by all its struts: nodeSize x R, grown so no neighbouring ring's corner
-  // reaches past a ring's plane. It must be one value per node; the bound assumes both rings sit at the same offset.
+  // One ring offset per node, shared by all its struts: nodeSize x the node's largest incident radius, grown so no
+  // neighbouring ring's corner reaches past a ring's plane. It must be one value per node; the bound assumes both
+  // rings sit at the same offset, so with two radii in a pair the larger w is the one that has to clear, and the
+  // largest over all pairs is just the node's own largest w. Computing it once here keeps the bound's expression
+  // unchanged and reduces exactly to the single-radius build when every incident radius is equal.
   // A closed ring: a strut from a node back to itself with nothing else there. It becomes a closed tube, no node.
   function isLoop(n) { return inc[n].length === 2 && inc[n][0].si === inc[n][1].si; }
   function away(e) { var t = tracks[e.si].t; return e.end ? mul(t[t.length - 1], -1) : t[0]; }
-  var reach = [], grew = [];
+  var reach = [], grew = [], base = [];
   for (var ni = 0; ni < points.length; ni++) {
-    var here = inc[ni], need = d0;
+    var here = inc[ni], rn = nodeR(ni), wn = rn * WIDTH, d0 = options.nodeSize * rn, need = d0;
+    base.push(d0);
     if (isLoop(ni)) { reach.push(0); grew.push(false); continue; }
     for (j = 0; j < here.length; j++) for (k = j + 1; k < here.length; k++) {
       var th = Math.acos(Math.max(-1, Math.min(1, dot(away(here[j]), away(here[k])))));
       if (th < 1e-6) { report.errors.push('Two curves at ' + where(points[ni]) + ' run in the same direction.'); continue; }
-      need = Math.max(need, 1.05 * w * Math.SQRT2 / Math.tan(th / 2));
+      need = Math.max(need, 1.05 * wn * Math.SQRT2 / Math.tan(th / 2));
     }
     var didGrow = here.length > 1 && need > d0 * 1.0001;
-    if (didGrow) { report.grownNodes++; report.largestReach = Math.max(report.largestReach, need / R); }
+    if (didGrow) { report.grownNodes++; report.largestReach = Math.max(report.largestReach, need / rn); }
     reach.push(need); grew.push(didGrow);
   }
   if (report.errors.length) return out;
@@ -311,6 +336,7 @@ function plan(curves, options) {
   var auto = options.divisions === undefined || options.divisions === 'auto', rings = [];
   for (i = 0; i < struts.length; i++) {
     tr = tracks[i];
+    var Rs = strutR(i), w = Rs * WIDTH;   // this strut's own radius and ring half-width
     var L = tr.L, free0 = inc[struts[i][0]].length === 1, free1 = inc[struts[i][1]].length === 1, loop = isLoop(struts[i][0]), rs = [], fr = [];
     if (loop) {
       // Closed tube: rings evenly round the loop. The frame carried round comes back turned by phi about the
@@ -323,30 +349,30 @@ function plan(curves, options) {
         fr.push(f0);
       }
     }
-    // Ring centres as distances from a: the node offset or the free end, plus the extra ring 1 x R in at a free end.
-    // A free end counts its extra ring, 1 x R, as its offset for the short-strut check.
+    // Ring centres as distances from a: the node offset or the free end, plus the extra ring 1 x the strut's own
+    // radius in at a free end. A free end counts that extra ring as its offset for the short-strut check.
     else {
-      var d1 = free0 ? R : reach[struts[i][0]], d2 = free1 ? R : reach[struts[i][1]];
+      var d1 = free0 ? Rs : reach[struts[i][0]], d2 = free1 ? Rs : reach[struts[i][1]];
       if (L < d1 + d2) report.shortStruts++;
       var at = [free0 ? 0 : d1];
-      if (free0) at.push(R);
-      if (free1) at.push(L - R);
+      if (free0) at.push(Rs);
+      if (free1) at.push(L - Rs);
       at.push(free1 ? L : L - d2);
       // Divisions: N extra rings spaced evenly between the innermost rings; Auto adds them only where the curve turns.
       var lo = at[free0 ? 1 : 0], hi = at[free1 ? at.length - 2 : at.length - 1], nd = auto ? spans(tr, lo, hi, 1) - 1 : divs;
       for (j = 1; j <= nd; j++) at.splice(at.length - (free1 ? 2 : 1), 0, lo + (hi - lo) * j / (nd + 1));
       // Round joints: one extra plain ring per qualifying node end, e further inboard than the joint ring
       // (independent of Divisions). e is at least w, but grows with how far the node's ring was pushed out
-      // past its normal d0 offset (reach - d0), so a heavily grown node (ticket 02's acute-angle offset) gets
+      // past that node's own nodeSize offset (reach - base), so a heavily grown node (ticket 02's acute-angle offset) gets
       // a gentler taper instead of a fixed w-wide step that Catmull-Clark overshoots past the corner.
       // Skipped silently if the strut has no room for it.
       if (options.roundJoints) {
         if (!free0 && qualifies(struts[i][0])) {
-          var e0 = Math.max(w, reach[struts[i][0]] - d0), c0 = at[0] + e0;
+          var e0 = Math.max(w, reach[struts[i][0]] - base[struts[i][0]]), c0 = at[0] + e0;
           if (c0 < at[1] - 1e-9) at.splice(1, 0, c0);
         }
         if (!free1 && qualifies(struts[i][1])) {
-          var e1 = Math.max(w, reach[struts[i][1]] - d0), c1 = at[at.length - 1] - e1;
+          var e1 = Math.max(w, reach[struts[i][1]] - base[struts[i][1]]), c1 = at[at.length - 1] - e1;
           if (c1 > at[at.length - 2] + 1e-9) at.splice(at.length - 1, 0, c1);
         }
       }

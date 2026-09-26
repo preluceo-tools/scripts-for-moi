@@ -117,7 +117,11 @@ Your export and mesh settings are not touched.</p>
   <tr>
     <td>Radius</td><td>0.5</td>
     <td>The strut radius, as a distance in your document units. Must be greater than zero. Struts come out
-      within about 1.5% of it (see <a href="#limits">Known limits</a>).</td>
+      within about 1.5% of it (see <a href="#limits">Known limits</a>).
+      <br>When every selected curve is on the same MoI style, this is the only radius field and it applies to
+      every strut. When the selection spans two or more styles, this field is
+      replaced by <strong>one radius per style</strong>, each labelled with the style's name, so each curve
+      builds its own thickness. See <a href="#perstyle">A radius per style</a>.</td>
   </tr>
   <tr>
     <td>Node size</td><td>1.6</td>
@@ -126,7 +130,10 @@ Your export and mesh settings are not touched.</p>
       It is a minimum per node: where struts meet at a tight angle the joint grows beyond it (see
       <a href="#tight">Tight angles</a>). At the default, the joints of a frame of right angles reach
       exactly 1.6; a lower value only tightens nodes wider than 90&deg;, because a right-angled node needs
-      about 1.6 anyway.</td>
+      about 1.6 anyway.
+      <br>Where struts of different radii meet, the joint's reach is a multiple of the <strong>largest</strong>
+      radius at that node and is shared by every strut there, so a thin strut runs straight for longer before
+      its first ring.</td>
   </tr>
   <tr>
     <td>Divisions</td><td>Auto (on)</td>
@@ -182,6 +189,40 @@ Your export and mesh settings are not touched.</p>
     the two stay separate pipe frames, with no warning. Split the other curve there to make a node.</li>
 </ul>
 
+<h2 id="perstyle">A radius per style</h2>
+
+<p>A pipe frame does not have to be one thickness. Each curve's radius comes from the <strong>MoI style</strong>
+it is on &mdash; the styles in the scene browser, the ones that colour your curves in the viewport.</p>
+
+<ol>
+  <li>Put the curves that should share a thickness on the same style, and the ones that should differ on
+    another. Any styles will do, including ones you add yourself in <em>Edit styles</em>.</li>
+  <li>Select them all and run MultiPipe2.</li>
+  <li>The options step shows <strong>one radius field per style in your selection</strong>, each labelled with
+    that style's name. Set them and press Done.</li>
+</ol>
+
+<p>Notes:</p>
+
+<ul>
+  <li><strong>One style, one field.</strong> If every selected curve is on the same style, the options step shows
+    a single <em>Radius</em> field for the whole frame, and none of this has to be used.</li>
+  <li><strong>The rows follow your selection, not the style list.</strong> The first field belongs to the first
+    style found among the selected curves, the second to the next, and so on. At most eight styles can be
+    mixed in one run; more is an error, and nothing is built.</li>
+  <li><strong>The rows start from the current <em>Radius</em>,</strong> so a value you tuned on a one-style run
+    carries over the first time the per-style rows appear.</li>
+  <li><strong>Joints need nothing extra.</strong> A node where struts of different radii meet is built the same
+    way as any other; there is no taper between them, and a strut is one radius end to end.</li>
+  <li><strong>A node is sized by the largest radius meeting there,</strong> shared by all its struts. So a thin
+    strut runs straight for longer before its first ring, and making one curve thicker can make a short strut
+    at a tight angle fail its joint &mdash; see <a href="#tight">Tight angles</a>.</li>
+  <li><strong>Duplicate curves of different radii.</strong> When curves lie on top of each other only the one
+    selected first is used. If a dropped one carried a different radius, the summary says so, since otherwise
+    the thickness there would depend invisibly on pick order.</li>
+  <li>The summary lists the distinct radii the run built, whenever there is more than one.</li>
+</ul>
+
 <h2 id="tight">Tight angles</h2>
 
 <p>Where struts meet at an acute angle, a joint that reached only <em>Node size</em> along each strut would
@@ -192,7 +233,7 @@ uses the same reach on every strut at the node. The tighter the angle, the fulle
 <img src="diagrams/tight-angle.svg" alt="A wide angle keeps the default joint reach; a tight angle grows it several times over" width="100%">
 
 <table>
-  <tr><th>Smallest angle between struts at the node</th><th>Joint reach, as a multiple of <em>Radius</em></th></tr>
+  <tr><th>Smallest angle between struts at the node</th><th>Joint reach, as a multiple of the largest radius at the node</th></tr>
   <tr><td>90&deg; or wider</td><td>1.6 (the value in the field)</td></tr>
   <tr><td>70.5&deg;</td><td>2.3</td></tr>
   <tr><td>51&deg;</td><td>4.6</td></tr>
@@ -202,9 +243,12 @@ uses the same reach on every strut at the node. The tighter the angle, the fulle
 <p>The summary says how many nodes grew and the largest reach, so you know why some joints are bigger.</p>
 
 <p><strong>Short struts.</strong> A strut shorter than the joints at its two ends need (a free end counts
-as 1 &times; <em>Radius</em>) has no room for itself: its joints overlap and the frame may intersect itself
+as 1 &times; that strut's own radius) has no room for itself: its joints overlap and the frame may intersect itself
 there. It is still built, and the summary counts it. Lengthen the strut, lower <em>Radius</em>, or lower
-<em>Node size</em> if the joint has not grown.</p>
+<em>Node size</em> if the joint has not grown. With a radius per style, raising one curve's radius pushes the
+joints out at every node it touches, so a short strut at a tight angle can cross into this regime, or stop
+building its joint altogether, because of a curve you were not changing. No combination of radii is guaranteed
+to build at every node.</p>
 
 <p>Two struts leaving a node in exactly the same direction cannot be joined; that is an error, and nothing
 is built.</p>
@@ -276,11 +320,16 @@ ends&rdquo;</em>. Further lines appear only when they apply:</p>
         input curves meeting a failed joint are renamed and left selected, so you can see them in the viewport
         and fix them. The dropped count is not shown for a cage output.</td></tr>
   <tr><td><em>n</em> duplicate segments dropped.</td>
-      <td>Your selection had curves lying on top of each other; one of each was used.</td></tr>
+      <td>Your selection had curves lying on top of each other; one of each was used &mdash; the one selected
+        first. When one of the dropped ones carried a different radius, the line says so, because the thickness
+        there then depends on which curve you picked first.</td></tr>
+  <tr><td>Radii built: <em>r</em>, <em>r</em>, &hellip;</td>
+      <td>The distinct radii the run used. Shown only when the selection spans more than one style, so more than
+        one radius went in. See <a href="#perstyle">A radius per style</a>.</td></tr>
   <tr><td><em>n</em> crossings left unjoined; split the curves there to make a node.</td>
       <td>Curves pass through each other mid-span. A line follows for each one:
         <em>&ldquo;Curves cross without sharing an end near (x, y, z); left unjoined.&rdquo;</em></td></tr>
-  <tr><td><em>n</em> nodes grew for tight angles, reaching up to <em>r</em> x Radius.</td>
+  <tr><td><em>n</em> nodes grew for tight angles, reaching up to <em>r</em> x the largest radius at the node.</td>
       <td>See <a href="#tight">Tight angles</a>.</td></tr>
   <tr><td><em>n</em> struts shorter than their joints; the frame may intersect itself there.</td>
       <td>See <em>Short struts</em> under <a href="#tight">Tight angles</a>.</td></tr>
@@ -298,6 +347,10 @@ ends&rdquo;</em>. Further lines appear only when they apply:</p>
   <tr><th>Error</th><th>Cause</th></tr>
   <tr><td>Select at least one curve.</td><td>No curve was picked.</td></tr>
   <tr><td>Radius must be greater than zero.</td><td>The radius was zero or negative.</td></tr>
+  <tr><td>Radius for <em>style</em> must be greater than zero.</td><td>One of the per-style radius fields was
+      zero or negative. The message names the style, so you know which row to fix.</td></tr>
+  <tr><td>The selection spans <em>n</em> styles; MultiPipe2 takes at most 8 in one run, one radius each.</td>
+      <td>See <a href="#perstyle">A radius per style</a>. Run it on fewer styles at a time.</td></tr>
   <tr><td>Node size must be at least 1.0.</td><td>The node size was below 1.0.</td></tr>
   <tr><td>Divisions must be a whole number of 0 or more.</td><td><em>Auto</em> is off and the number is negative
       or has a fraction.</td></tr>
@@ -334,7 +387,8 @@ ends&rdquo;</em>. Further lines appear only when they apply:</p>
   <li><strong>Very many struts at one node</strong> (more than about ten) make that joint slow to build.</li>
   <li><strong>No wall thickness.</strong> The struts are solid, not hollow tubes.</li>
   <li><strong>No preview.</strong> You see the result after the build, before keeping it.</li>
-  <li><strong>One radius for the whole frame.</strong> No tapering or per-strut size.</li>
+  <li><strong>A radius is per curve, not per point.</strong> A strut is one radius end to end, and there is no
+    taper or blend where struts of different radii meet. At most eight styles can be mixed in one run.</li>
 </ul>
 
 <h2 id="tested">What has been tested, and what has not</h2>
@@ -345,10 +399,11 @@ the curves, grown nodes, short struts, duplicates, crossings and errors &mdash; 
 MoI, checking that each sample frame comes in as closed solids of the right number, size and place, including
 a pipe frame of 300 struts, the cage curves &mdash; one closed curve per face, on cages with faces of 3, 4,
 6, 8 and 10 vertices, and on a joint too tight to build &mdash; and the cage surfaces, one surface per face on
-the same cages and on the 300-strut frame, with the construction curves gone afterwards.</p>
+the same cages and on the 300-strut frame, with the construction curves gone afterwards. A frame built with a radius per curve is covered both ways: the ring widths, the node offset and the reported reach in the cage tests, and a mixed-radius scene put through the real SubD import.</p>
 
 <p><strong>Checked by hand only, so worth a careful first look:</strong> the command panel (option fields,
-the greyed-out <em>Divisions</em> field, the <em>Output</em> list, prompts, the summary, <em>Done</em>, <em>Back</em>
+the greyed-out <em>Divisions</em> field, the <em>Output</em> list, the per-style radius rows and their labels,
+prompts, the summary, <em>Done</em>, <em>Back</em>
 and <em>Cancel</em>, values
 remembered between runs), one <kbd>Ctrl</kbd>+<kbd>Z</kbd> removing the whole result, installing and running
 the command by name, and picking curves in a live document. Nothing has been run on macOS.</p>

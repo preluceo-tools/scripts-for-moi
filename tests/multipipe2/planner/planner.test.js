@@ -150,6 +150,85 @@ test('tight angles grow the node: one closed cage, reach as a factor of radius',
   }
 });
 
+// Per-curve radius (ticket 17): radii gives one radius per input entry. Per-strut quantities follow the strut's own
+// radius, per-node quantities the largest radius meeting at the node.
+const W1 = 1 / 0.93, W3 = 3 / 0.93;
+const uniq = (xs) => [...new Set(xs.map((x) => +x.toFixed(6)))].sort((a, b) => a - b);
+
+test('per-curve radius: ring widths per strut, the node offset from the largest radius there', () => {
+  // bend90 at radii 1 and 3. The 90-degree node: 1.05 * W3 * sqrt2 / tan(45) = 4.79 < nodeSize * 3 = 4.8, so it
+  // does not grow and both struts' rings sit at 4.8 — the largest incident radius, not the smallest or the average.
+  const cage = run('bend90', { radii: [1, 3] }), r = cage.report;
+  assert.deepStrictEqual(r.errors, []);
+  assert.strictEqual(r.grownNodes, 0);
+  assert.strictEqual(r.shortStruts, 0);
+  assertClosedAndWound(cage, 'bend90 mixed');
+  // The thin strut runs along X: its rings are W1 wide, at 4.8 (the node) and at 30 - 1 and 30 (its free end).
+  const thin = cage.vertices.filter((v) => Math.abs(Math.abs(v[1]) - W1) < 1e-9 && Math.abs(Math.abs(v[2]) - W1) < 1e-9);
+  assert.deepStrictEqual(uniq(thin.map((v) => v[0])), [4.8, 29, 30]);
+  assert.strictEqual(thin.length, 12);
+  // The fat strut runs along Y: its rings are W3 wide, at 4.8 and at 30 - 3 and 30.
+  const fat = cage.vertices.filter((v) => Math.abs(Math.abs(v[0]) - W3) < 1e-9 && Math.abs(Math.abs(v[2]) - W3) < 1e-9);
+  assert.deepStrictEqual(uniq(fat.map((v) => v[1])), [4.8, 27, 30]);
+  assert.strictEqual(fat.length, 12);
+  // Nothing else: the joint is the hull of those rings' corners and adds no vertex of its own.
+  assert.strictEqual(cage.vertices.length, 24);
+});
+
+test('per-curve radius: largestReach is per node, against that node\'s own largest radius', () => {
+  // hairpin30 at radii 1 and 3 grows to 1.05 * W3 * sqrt2 / tan(15) = 17.87, which is 5.96 x the node's own
+  // largest radius — the same factor the uniform build reports, since the bound scales with w. Against the
+  // options' radius of 2 it would read 8.94.
+  const cage = run('hairpin30', { radii: [1, 3] }), r = cage.report;
+  assert.deepStrictEqual(r.errors, []);
+  assert.strictEqual(r.grownNodes, 1);
+  assert.ok(Math.abs(r.largestReach - 5.96) < 0.01, 'reach ' + r.largestReach);
+  // Both struts' joint rings sit at that one offset along their own curves.
+  const want = 1.05 * W3 * Math.SQRT2 / Math.tan(15 * Math.PI / 180);
+  for (const s of [[1, 0, 0], [Math.cos(Math.PI / 6), Math.sin(Math.PI / 6), 0]]) {
+    const along = cage.vertices.map((v) => dot(v, s)).filter((x) => Math.abs(x - want) < 0.5);
+    assert.ok(along.length >= 4, 'no ring near the node offset along ' + s);
+  }
+  assertClosedAndWound(cage, 'hairpin30 mixed');
+});
+
+test('per-curve radius: every radius equal is exactly the single-radius build', () => {
+  for (const name of ['cubeframe', 'roofTruss', 'k5skew']) {
+    const one = run(name), same = run(name, { radii: scenes[name].map(() => R) });
+    assert.deepStrictEqual(same.vertices, one.vertices, name);
+    assert.deepStrictEqual(same.faces, one.faces, name);
+    assert.deepStrictEqual(same.report, one.report, name);
+  }
+  // An entry left out falls back to the single radius.
+  assert.deepStrictEqual(run('bend90', { radii: [R] }).vertices, run('bend90').vertices);
+});
+
+test('per-curve radius: a row at or below zero is an error, and a dropped duplicate of another radius is counted', () => {
+  assert.match(run('bend90', { radii: [1, 0] }).report.errors[0], /Radius/);
+  assert.match(run('bend90', { radii: [1, -2] }).report.errors[0], /Radius/);
+  const dup = [{ kind: 'line', start: [0, 0, 0], end: [30, 0, 0] }, { kind: 'line', start: [30, 0, 0], end: [0, 0, 0] }];
+  const differs = plan(dup, { ...opts, radii: [1, 3] }).report;
+  assert.deepStrictEqual([differs.duplicatesDropped, differs.duplicateRadii], [1, 1]);
+  const alike = plan(dup, { ...opts, radii: [3, 3] }).report;
+  assert.deepStrictEqual([alike.duplicatesDropped, alike.duplicateRadii], [1, 0]);
+  assert.strictEqual(plan(dup, opts).report.duplicateRadii, 0);
+});
+
+test('per-curve radius: a mixed-radius node builds its joint, or fails where the largest radius alone would', () => {
+  // The mixed-radius scene the MoI suite runs live: a three-way node and a straight node, radii 1, 3 and 2.
+  const mixed = run('mixedradius', { radii: [1, 3, 2, 3] }), mr = mixed.report;
+  assert.deepStrictEqual(mr.errors, []);
+  assert.deepStrictEqual([mr.pipeFrames, mr.nodes, mr.freeEnds, mr.jointFailures], [1, 2, 3, 0]);
+  assertClosedAndWound(mixed, 'mixedradius');
+  // Mixed radii fail exactly where the larger radius alone fails, so a 2-degree pair fails at both and a short
+  // arm at a tight angle is short according to the node's largest radius, not its own.
+  const tight = (radii) => plan([{ kind: 'line', start: [0, 0, 0], end: [100, 0, 0] },
+    { kind: 'line', start: [0, 0, 0], end: [100 * Math.cos(2 * Math.PI / 180), 100 * Math.sin(2 * Math.PI / 180), 0] }],
+    { ...opts, radii: radii });
+  assert.strictEqual(tight([1, 3]).report.jointFailures, tight([3, 3]).report.jointFailures);
+  assert.ok(tight([3, 3]).report.jointFailures > 0);
+});
+
 test('a strut shorter than its two end offsets is counted and still built', () => {
   // A 30-degree hairpin with an 8-long arm: the node needs about 11.9, the free end 2.
   const p = plan([{ kind: 'line', start: [0, 0, 0], end: [30, 0, 0] },

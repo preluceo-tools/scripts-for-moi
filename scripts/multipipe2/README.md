@@ -62,8 +62,8 @@ https://github.com/user-attachments/assets/071b6773-6232-4697-a9c9-91e274a16de6
 
 | Option | Default | What it does |
 |---|---|---|
-| Radius | 0.5 | Strut radius, as a distance in your document units. |
-| Node size | 1.6 | How far a joint reaches along each strut, as a multiple of the radius. Minimum 1.0; tight angles grow it further. |
+| Radius | 0.5 | Strut radius, as a distance in your document units. When the selected curves are all on one style, this is the only radius input and applies to every strut. When they span two or more styles, one radius input appears per style instead, named after it, so each curve builds its own thickness. |
+| Node size | 1.6 | How far a joint reaches along each strut, as a multiple of the radius. Where struts of different radii meet, it is a multiple of the largest radius at that node, shared by all of them. Minimum 1.0; tight angles grow it further. |
 | Divisions | Auto | *Auto* divides curved struts just enough to follow the curve. Off: every strut gets the whole number you type. |
 | Cap | On | Rounds off free ends, so the result is a closed solid. Off leaves them open. |
 | Round joints | Off | Holds grown joints round instead of letting them pinch — see [below](#round-joints-fixing-the-pinch-at-grown-nodes). |
@@ -107,7 +107,7 @@ reference point, and the honest comparison is against Rhino's own documentation,
 |---|---|---|
 | Application | MoI3D, any version with SubD import | Rhino 7 or newer (native command and Grasshopper component) |
 | Cost to add | Free script, no install beyond copying files | Included with a Rhino 7+ license |
-| Documented options | Radius, Node size, Divisions (Auto or manual per strut), Cap, Round joints, All nodes | Radius, Cap, Struts (a single division count) |
+| Documented options | Radius (one per style), Node size, Divisions (Auto or manual per strut), Cap, Round joints, All nodes | Radius, Cap, Struts (a single division count) |
 | Per-node joint size | Yes — *Node size*, and grown automatically at tight angles | Not documented |
 | Reported diagnostics | Grown nodes and largest reach, duplicate curves dropped, crossings left unjoined, short struts, free ends | Not documented |
 | Pinch control at grown/high-degree joints | Yes — *Round joints* / *All nodes*, see above | Not documented |
@@ -129,7 +129,12 @@ frame in both.
   0.08 × radius short).
 - Crossings are not split for you.
 - A pipe frame of 300 struts takes about 18 seconds — nearly all of it MoI's own SubD import.
-- The struts are solid, not hollow, and one radius applies to the whole frame.
+- The struts are solid, not hollow.
+- A radius is per curve, not per point: a strut is one radius end to end, with no taper between struts of
+  different radii. At most eight styles can be mixed in one run.
+- A thin strut meeting a fat one runs straight for longer before its first ring, because the joint at that node
+  is sized by the largest radius meeting there. For the same reason, making one curve thicker can push a short
+  strut at a tight angle past what its joint can build.
 
 The [manual](MultiPipe2-manual.html) documents every option, every message, and the full list.
 

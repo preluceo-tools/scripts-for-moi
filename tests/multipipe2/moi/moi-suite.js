@@ -15,6 +15,8 @@
 // circle, which must come in as one closed tube with no node). The 'N=3' runs repeat some with Divisions 3 and must still come in as closed solids.
 // The 'round joints, all nodes' runs repeat roofTruss and twobends with Round joints and All nodes on, so the
 // apex-vertex fan joint (ticket 11) is checked live too, not just by the planner tests.
+// The 'mixedradius' run gives each curve its own radius (ticket 17), so a mixed-radius node's cage is put through
+// the SubD import for real and must come in as one closed solid.
 // Last comes 'lattice', a generated 4 x 4 x 4 grid (300 struts, 125 nodes, Radius 0.5): one closed solid, with its
 // planner (describe plus plan), write and import times recorded separately (write is objLines plus writing the OBJ;
 // import is importCage less that write).
@@ -55,6 +57,10 @@ function runMoiSuite(root) {
   // Round joints, all nodes: the apex-vertex fan joint (ticket 11) must still import as a closed solid inside the
   // cage's own box, on the scene the bug was reported against (roofTruss) and a clean one (twobends).
   runs.push({ name: 'roofTruss', cap: true, roundJoints: true, allNodes: true }, { name: 'twobends', cap: true, roundJoints: true, allNodes: true });
+  // Per-curve radius (ticket 17): a radius per curve, so a three-way node mixes 1, 3 and 2 and a straight node
+  // mixes 1 and 3. The SubD import must accept it as one closed solid, not merely a cage that passes the
+  // closed-and-wound assertion. The ring widths themselves are the planner tests' job.
+  runs.push({ name: 'mixedradius', cap: true, radii: [1, 3, 2, 3] });
   var VM = moi.vectorMath;
   function P(a) { return VM.createPoint(a[0], a[1], a[2]); }
   function curve(c) {
@@ -83,10 +89,11 @@ function runMoiSuite(root) {
   var before = gd.getObjects().length, out = { passed: 0, failed: [], results: [] };
   for (n = 0; n < runs.length; n++) {
     var name = runs[n].name, label = name + (runs[n].cap ? '' : ' (cap off)') + (runs[n].divisions ? ' (N=' + runs[n].divisions + ')' : '') +
-      (runs[n].roundJoints ? ' (round joints' + (runs[n].allNodes ? ', all nodes' : '') + ')' : ''), spec = scenes[name], curves = gd.createObjectList(), i, reason = '';
+      (runs[n].roundJoints ? ' (round joints' + (runs[n].allNodes ? ', all nodes' : '') + ')' : '') +
+      (runs[n].radii ? ' (radii ' + runs[n].radii.join('/') + ')' : ''), spec = scenes[name], curves = gd.createObjectList(), i, reason = '';
     for (i = 0; i < spec.length; i++) curves.addObject(curve(spec[i]));
     var input = describe(curves);
-    var cage = plan(input, { radius: R, nodeSize: 1.6, divisions: runs[n].divisions, cap: runs[n].cap, tolerance: tol,
+    var cage = plan(input, { radius: R, radii: runs[n].radii, nodeSize: 1.6, divisions: runs[n].divisions, cap: runs[n].cap, tolerance: tol,
       roundJoints: runs[n].roundJoints, allNodes: runs[n].allNodes }), t0 = new Date().getTime();
     var fatal = cage.report.errors.slice();
     if (cage.report.jointFailures) fatal.push(cage.report.jointFailures + ' joint(s) could not be built');

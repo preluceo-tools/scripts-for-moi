@@ -150,6 +150,54 @@ function buildCageSolid(cage) {
 
 function plural(n, word) { return n + ' ' + word + (n == 1 ? '' : 's'); }
 
+// Radius per curve, carried by the curve's MoI style. The distinct styles in the locked selection, in the order
+// they are first met: row n of the options panel belongs to the n-th distinct style, so a style the user added at
+// any index needs no reserved row and the cap is on how many styles one run mixes, not on the style index.
+// MAX_STYLES must match the number of style rows declared in MultiPipe2.htm.
+var MAX_STYLES = 8;
+function distinctStyles(curves) {
+  var seen = {}, out = [], i, s;
+  for (i = 0; i < curves.length; i++) {
+    s = curves.item(i).styleIndex;
+    if (!(s in seen)) { seen[s] = true; out.push(s); }
+  }
+  return out;
+}
+// A style name is whatever the user typed in Edit styles, and it reaches the panel and the summary as HTML.
+function escapeHTML(s) { return ('' + s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;'); }
+function styleNames(styles) {
+  var all = moi.geometryDatabase.getObjectStyles(), out = [], i;
+  for (i = 0; i < styles.length; i++) out.push(styles[i] >= 0 && styles[i] < all.length ? all.item(styles[i]).name : 'Style ' + styles[i]);
+  return out;
+}
+// The per-style rows, revealed only when the selection spans two or more styles, so a selection on one style shows
+// exactly the panel it always did. seed writes the single Radius value into each row, done once a run: on the way
+// back from the summary the rows keep whatever the user typed.
+function showStyleRows(styles, names, seed) {
+  var ui = moi.ui, cui = ui.commandUI, i;
+  if (styles.length < 2) return;
+  ui.hideUI('radiustr');
+  for (i = 0; i < styles.length; i++) {
+    ui.showUI('style' + (i + 1) + 'tr');
+    cui['style' + (i + 1) + 'name'].innerHTML = escapeHTML(names[i]) + ':';
+    if (seed) cui['style' + (i + 1) + 'radius'].value = cui.radius.value;
+  }
+}
+// One radius per input entry, from the row its curve's style owns; null when the selection is on one style, and the
+// single Radius is used as before. Row values at or below zero are reported by style name, which the planner cannot
+// do because it never sees a style.
+function styleRadii(owners, styles, names, errors) {
+  var cui = moi.ui.commandUI, byStyle = {}, radii = [], i;
+  if (styles.length < 2) return null;
+  for (i = 0; i < styles.length; i++) {
+    var v = cui['style' + (i + 1) + 'radius'].value;
+    if (!(v > 0)) errors.push('Radius for ' + escapeHTML(names[i]) + ' must be greater than zero.');
+    byStyle[styles[i]] = v;
+  }
+  for (i = 0; i < owners.length; i++) radii.push(byStyle[owners[i].styleIndex]);
+  return radii;
+}
+
 // The input curves meeting a joint that could not be built: named and left selected so the user can see which
 // ones defeated the command, and every other input curve deselected so only those stand out.
 function markFailed(curves, owners, failed) {
@@ -164,8 +212,9 @@ function markFailed(curves, owners, failed) {
 
 // One pass over the options, the build and the summary. Returns what the user ended it on: true for Done,
 // 'back' for the Back button, false for Cancel. Anything the pass added is removed unless it ended on Done.
-function pass(curves) {
+function pass(curves, styles, names, seed) {
   show('Options');
+  showStyleRows(styles, names, seed);
   moi.ui.commandUI.divisions.disabled = moi.ui.commandUI.auto.value;
   moi.ui.commandUI.allNodes.disabled = !moi.ui.commandUI.roundJoints.value;
   if (waitForDone() !== true) return false;   // Back is hidden on the options step, so this is Cancel.
@@ -173,13 +222,23 @@ function pass(curves) {
   // The count before planning is the input segments; duplicates the planner drops are still in it.
   var ui = moi.ui.commandUI, cap = ui.cap.value, output = ui.output.value, owners = [], input = describe(curves, owners), segments = 0, i;
   for (i = 0; i < input.length; i++) segments += input[i].kind == 'polyline' ? input[i].points.length - 1 : 1;
+  var rowErrors = [], radii = styleRadii(owners, styles, names, rowErrors);
+  if (rowErrors.length) return stop(rowErrors.join('<br>'));
   show('BuildingPrompt', 'Building ' + plural(segments, 'strut') + '...');
-  var cage = plan(input, { radius: ui.radius.value, nodeSize: ui.nodesize.value,
+  // The single Radius is hidden while the per-style rows are up, so it must not be what the planner validates:
+  // a zero left in it by an earlier run would be an error about a field the user cannot see. On a multi-style run
+  // the first row stands in for it, and every strut has its own radius anyway.
+  var fallback = radii && radii.length ? radii[0] : ui.radius.value;
+  var cage = plan(input, { radius: fallback, radii: radii, nodeSize: ui.nodesize.value,
     divisions: ui.auto.value ? 'auto' : ui.divisions.value, cap: cap,
     roundJoints: ui.roundJoints.value, allNodes: ui.allNodes.value,
     tolerance: moi.geometryDatabase.tolerance });
   var r = cage.report, frame = output == 'frame', objs, notes = '';
   if (r.errors.length) return stop(r.errors.join('<br>'));
+  // The radii actually built, for the summary; only worth saying when they differ.
+  var used = [];
+  for (i = 0; radii && i < radii.length; i++) { var seen = false, m; for (m = 0; m < used.length; m++) if (used[m] == radii[i]) seen = true; if (!seen) used.push(radii[i]); }
+  used.sort(function (a, b) { return a - b; });
   // A joint that could not be built is fatal to its own pipe frame only (the SubD import rejects the whole cage,
   // so the frame is dropped from the file); the rest are built, and a cage output draws everything.
   if (r.jointFailures) markFailed(curves, owners, r.failedCurves);
@@ -214,11 +273,14 @@ function pass(curves) {
 
   show('SummaryPrompt', notes + plural(frames, 'pipe frame') + ', ' + plural(r.struts, 'strut') + ', ' +
     plural(r.nodes, 'node') + ', ' + plural(r.freeEnds, 'free end') +
-    (r.duplicatesDropped ? '<br>' + plural(r.duplicatesDropped, 'duplicate segment') + ' dropped.' : '') +
+    (used.length > 1 ? '<br>Radii built: ' + used.join(', ') + '.' : '') +
+    (r.duplicatesDropped ? '<br>' + plural(r.duplicatesDropped, 'duplicate segment') + ' dropped.' +
+      (r.duplicateRadii ? ' ' + (r.duplicateRadii == 1 ? 'One of them carried' : r.duplicateRadii + ' of them carried') +
+        ' a different radius from the segment kept, so the thickness there follows the one selected first.' : '') : '') +
     (r.crossings ? '<br>' + plural(r.crossings, 'crossing') + ' left unjoined; split the curves there to make a node.<br>' +
       r.warnings.join('<br>') : '') +
     (r.grownNodes ? '<br>' + plural(r.grownNodes, 'node') + ' grew for tight angles, reaching up to ' +
-      r.largestReach.toFixed(2) + ' x Radius.' : '') +
+      r.largestReach.toFixed(2) + ' x the largest radius at the node.' : '') +
     (r.shortStruts ? '<br>' + plural(r.shortStruts, 'strut') + ' shorter than ' + (r.shortStruts == 1 ? 'its' : 'their') +
       ' joints; the frame may intersect itself there.' : '') +
     (r.roundedNodes ? '<br>' + plural(r.roundedNodes, 'node') + ' came to a miter point.' : '') +
@@ -238,9 +300,17 @@ function MultiPipe2() {
   // markFailed changes. The selection itself is held, so Back never asks for the curves again.
   var was = [], i;
   for (i = 0; i < curves.length; i++) was.push([curves.item(i).name, curves.item(i).selected]);
-  var end;
+  // The selection is locked for the run, so its styles are fixed: found once, not again when Back returns.
+  var styles = distinctStyles(curves);
+  if (styles.length > MAX_STYLES) {
+    stop('The selection spans ' + styles.length + ' styles; MultiPipe2 takes at most ' + MAX_STYLES +
+      ' in one run, one radius each. Run it on fewer styles at a time.');
+    return;
+  }
+  var names = styleNames(styles), seed = true, end;
   do {
-    end = pass(curves);
+    end = pass(curves, styles, names, seed);
+    seed = false;
     if (end === true) return;
     for (i = 0; i < curves.length; i++) { var c = curves.item(i); c.name = was[i][0]; c.selected = was[i][1]; }
   } while (end === 'back');

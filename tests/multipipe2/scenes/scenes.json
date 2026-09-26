@@ -1,5 +1,5 @@
 {
-  "_about": "MultiPipe2 sample scenes, same format as MultiPipe's scene file. Each scene is a list of curves; line gives its two ends, polyline its vertices, interp the points an interpolated curve runs through, circle a center and radius in the XY plane.",
+  "_about": "MultiPipe2 sample scenes, same format as MultiPipe's scene file. Each scene is a list of curves; line gives its two ends, polyline its vertices, interp the points an interpolated curve runs through, circle a center and radius in the XY plane. mixedradius is run with a radius per curve: a three-way node and a straight node, so both a mixed node and a mixed collinear pair are built.",
   "line": [
     { "type": "line", "pts": [[0, 0, 0], [30, 0, 0]] }
   ],
@@ -41,6 +41,12 @@
     { "type": "line", "pts": [[0, 0, 0], [0, 30, 0]] },
     { "type": "line", "pts": [[0, 0, 20], [30, 0, 20]] },
     { "type": "line", "pts": [[0, 0, 20], [0, 0, 50]] }
+  ],
+  "mixedradius": [
+    { "type": "line", "pts": [[0, 0, 0], [30, 0, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 30, 0]] },
+    { "type": "line", "pts": [[0, 0, 0], [0, 0, 30]] },
+    { "type": "line", "pts": [[30, 0, 0], [60, 0, 0]] }
   ],
   "hairpin30": [
     { "type": "line", "pts": [[0, 0, 0], [30, 0, 0]] },
