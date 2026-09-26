@@ -22,7 +22,7 @@
 </head>
 <body>
 
-<h1>MultiPipe2 1.1.5</h1>
+<h1>MultiPipe2 1.1.6</h1>
 <p class="lead">Turn a network of curves into a smooth pipe frame, inside MoI, in a single step.</p>
 <p>This is the full reference. For a shorter, more visual overview &mdash; and how MultiPipe2
 compares to Rhino's own native <code>MultiPipe</code> command &mdash; see the
@@ -212,9 +212,10 @@ style name when you press Done, like a typed zero.</p>
 <p>While the options are open, the viewport shows a temporary <em>Preview</em> of the result. It is drawn as soon
 as the options appear and redrawn after every change to Radius, Node size, Divisions, Cap, Round joints, All nodes
 and Output, and after every pick. It follows the <em>Output</em>: <em>Cage surfaces</em> and <em>Cage solid</em>
-are drawn as chosen, and <em>Pipe frame</em> and <em>Cage curves</em> are drawn as Cage curves. When the cage has
-more than 150 faces, surfaces and solid would redraw too slowly, so the Preview shows Cage curves and the panel says
-so; the build on Done still makes the Output you chose.
+are drawn as chosen, <em>Cage curves</em> as Cage curves, and <em>Pipe frame</em> as the smooth pipe frame itself.
+The pipe frame takes MoI about 4 ms per cage face to draw, so when the cage has more than 200 faces (a cube frame
+has 112) the Preview shows Cage curves instead and the panel says so. Surfaces and solid are drawn faster, and fall
+back to Cage curves above 150 faces. Whatever the Preview shows, the build on Done still makes the Output you chose.
  If some joints cannot be built, the panel says how many joints and curves are affected; the
 selection changes only after the build. A radius that is not valid, or curves that make no faces, leave the Preview
 empty. The Preview and the guide circle are removed before the result is built, and on <em>Back</em> and
@@ -403,7 +404,7 @@ ends&rdquo;</em>. Further lines appear only when they apply:</p>
     of another strut. Split them where you want a node.</li>
   <li><strong>Very many struts at one node</strong> (more than about ten) make that joint slow to build.</li>
   <li><strong>No wall thickness.</strong> The struts are solid, not hollow tubes.</li>
-  <li><strong>The Preview of a pipe frame is its cage.</strong> The smooth SubD result is shown only after the build, before you keep it.</li>
+  <li><strong>A large pipe frame is previewed as its cage.</strong> Above 200 cage faces the Preview shows Cage curves; the smooth result is shown after the build, before you keep it.</li>
   <li><strong>A radius is per curve, not per point.</strong> A strut is one radius end to end, and there is no
     taper or blend where struts of different radii meet. At most eight styles can be mixed in one run.</li>
 </ul>

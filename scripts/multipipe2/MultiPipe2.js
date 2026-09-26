@@ -229,6 +229,9 @@ function planNow(input, radii) {
 // Above this many cage faces the Preview of surfaces or a solid falls back to Cage curves: about half a second
 // a redraw for a solid, measured live on strips of 100 to 400 faces (a solid took 0.38 s at 100, 0.64 s at 200; 150 sits at about 0.5 s). Not timed on G1, G2, G7 or the 300-strut frame.
 var PREVIEW_MAX_FACES = 150;
+// Above this many cage faces a Pipe frame Preview is Cage curves, not the SubD pipe frame: the import costs about 4 ms
+// a face, measured live on grids (42 faces 0.21 s, 112 0.47 s, 294 1.3 s, 2830 15.5 s), so 200 keeps a redraw under a second.
+var PREVIEW_MAX_SUBD_FACES = 200;
 
 // The options step, single- and multi-style alike: waits on the panel and on the viewport in one loop. Pick 0 is
 // the single Radius, pick n the n-th style row. A row's Pick button makes it active; while it is, the mouse sets
@@ -254,6 +257,16 @@ function optionsStep(curves, styles, names) {
       if (r.errors.length) return;
       if (r.jointFailures) lines.push(plural(r.jointFailures, 'joint') + ' cannot be built (' + plural(r.failedCurves.length, 'curve') + ')');
       if (!cage.faces.length) { note(lines.join('<br>')); return; }
+      if (out == 'frame') {
+        var build = r.jointFailures ? cage.partial : cage;
+        if (build.faces.length && build.faces.length <= PREVIEW_MAX_SUBD_FACES) {
+          preview = importCage(build);
+          note(lines.join('<br>'));
+          return;
+        }
+        out = 'curves';
+        if (build.faces.length) lines.push('Preview shows Cage curves: too many faces for a pipe frame');
+      }
       if ((out == 'surfaces' || out == 'solid') && cage.faces.length > PREVIEW_MAX_FACES) {
         out = 'curves'; lines.push('Preview shows Cage curves: too many faces for surfaces or solid');
       }
