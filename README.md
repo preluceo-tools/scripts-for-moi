@@ -49,7 +49,7 @@ geometry commands.
 
 | Script | Download | Manual |
 |---|---|---|
-| **MultiPipe2** 1.1.7 | **[MultiPipe2-1.1.7.zip](https://github.com/preluceo-tools/scripts-for-moi/releases/download/multipipe2-v1.1.7/MultiPipe2-1.1.7.zip)** (51 KB) · [all versions](https://github.com/preluceo-tools/scripts-for-moi/releases) | [README](scripts/multipipe2/README.md) · [Manual](https://htmlpreview.github.io/?https://github.com/preluceo-tools/scripts-for-moi/blob/main/scripts/multipipe2/MultiPipe2-manual.html) |
+| **MultiPipe2** 1.1.7 | **[MultiPipe2-1.1.7.zip](https://github.com/preluceo-tools/scripts-for-moi/releases/download/multipipe2-v1.1.7/MultiPipe2-1.1.7.zip)** (52 KB) · [all versions](https://github.com/preluceo-tools/scripts-for-moi/releases) | [README](scripts/multipipe2/README.md) · [Manual](https://htmlpreview.github.io/?https://github.com/preluceo-tools/scripts-for-moi/blob/main/scripts/multipipe2/MultiPipe2-manual.html) |
 | **MultiPipe** 1.0.0 (final) | **[MultiPipe-1.0.0.zip](https://github.com/preluceo-tools/scripts-for-moi/releases/download/multipipe-v1.0.0/MultiPipe-1.0.0.zip)** (31 KB) | [README](scripts/multipipe/README.md) · [Manual](https://htmlpreview.github.io/?https://github.com/preluceo-tools/scripts-for-moi/blob/main/scripts/multipipe/MultiPipe-manual.html) |
 
 The zip holds the command files, the manual and the licence. Unzip it and follow

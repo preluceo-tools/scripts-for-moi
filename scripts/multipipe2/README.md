@@ -41,7 +41,7 @@ https://github.com/user-attachments/assets/071b6773-6232-4697-a9c9-91e274a16de6
 - [How it compares to Rhino's MultiPipe](#how-it-compares-to-rhinos-multipipe)
 - [Known limits](#known-limits)
 - [Install](#install)
-- [Version history](#version-history)
+- [Version history](#version-history) · [Thanks](#thanks)
 - [Full manual, license and built-with](#full-manual-license-and-built-with)
 
 ---
@@ -159,11 +159,23 @@ Every version is a zip under `dist/` in this repository; releases are also on th
 | **1.1.7** | Preview always says why it falls back to a lighter preview, and never leaves a stray object in the scene. |
 | 1.1.6 | Pipe frame Preview shows the real SubD pipe frame for networks up to 200 cage faces. |
 | 1.1.5 | Preview appears as soon as the options open, for every selection; Pick works on the single Radius field too; heavy scenes fall back to a lighter preview. Failed joints select only the failed curves, not the built result. Each Pick button sits under its radius input. |
-| 1.1.4 | Pick button next to each Radius field sets the radius in the viewport, with a guide circle; Cage curves preview. |
+| 1.1.4 | Pick button next to each Radius field sets the radius in the viewport, with a guide circle; Cage curves preview, as suggested by MO (MO_TE). |
 | 1.1.3 | One Radius field per style, placed in the options panel, with the manual and README using one term for it. |
 | 1.1.2 | Per-style Radius rows show up reliably in the options panel. |
-| 1.1.1 | Per-curve radius, carried by each curve's style. Output option: pipe frame, cage curves, cage surfaces or cage solid. Partial build when some joints fail, with the failed curves selected. Back button from the summary to the options. |
+| 1.1.1 | Per-curve radius, carried by each curve's style. Output option: pipe frame, cage curves, cage surfaces or cage solid. Partial build when some joints fail, with the failed curves selected. Back button from the summary to the options. Suggested by MO (MO_TE) — see [Thanks](#thanks). |
 | 1.0.0 | First release: smooth pipe frame from lines, polylines and curves, closed rings, tight-angle node growth, round joints, cap-off, manual or automatic divisions, large frames. |
+
+### Thanks
+
+Thanks to **MO (MO_TE)** for revising and testing MultiPipe2 on a network of more than 100 curves,
+and for the suggestions in the [MoI forum thread](https://moi3d.com/forum/index.php?webtag=MOI&msg=12116.4) that shaped 1.1.1 and 1.1.4:
+
+- a radius per pipe instead of one radius for all;
+- an option to output the cage itself, to edit it and SubD-import it by hand or by script, and a raw
+  cage preview that skips the SubD import;
+- showing failed joints by selecting their curves in the viewport, instead of filling the panel with
+  coordinates;
+- a Back button, for trial and error without cancelling and running the command again.
 
 ---
 
