@@ -202,12 +202,13 @@ function styleRadii(owners, styles, names, errors) {
   return radii;
 }
 
-// The input curves meeting a joint that could not be built: left selected so the user can see which ones
-// defeated the command, and every other input curve deselected so only those stand out. Names are not touched:
+// The input curves meeting a joint that could not be built: the built objects and every other input curve are
+// deselected, so only these are selected. Back and Cancel restore the curves' selection from the saved flags. Run after the build. Names are not touched:
 // a scripted rename is not part of MoI's undo unit, so it would outlive an undo after Done.
-function markFailed(curves, owners, failed) {
+function markFailed(curves, owners, failed, built) {
   var bad = {}, i, obj;
   for (i = 0; i < failed.length; i++) bad[owners[failed[i]].id] = true;
+  for (i = 0; i < built.length; i++) built.item(i).selected = false;
   for (i = 0; i < curves.length; i++) {
     obj = curves.item(i);
     obj.selected = !!bad[obj.id];
@@ -303,7 +304,6 @@ function pass(curves, styles, names, seed) {
   used.sort(function (a, b) { return a - b; });
   // A joint that could not be built is fatal to its own pipe frame only (the SubD import rejects the whole cage,
   // so the frame is dropped from the file); the rest are built, and a cage output draws everything.
-  if (r.jointFailures) markFailed(curves, owners, r.failedCurves);
   var frames = frame ? r.pipeFrames - r.framesDropped : r.pipeFrames;
   var failures = r.jointFailures ? '<br>' + plural(r.jointFailures, 'joint') + ' could not be built; ' +
     (frame ? plural(r.framesDropped, 'pipe frame') + ' dropped. ' : '') +
@@ -332,6 +332,7 @@ function pass(curves, styles, names, seed) {
     notes = plural(objs.length, 'cage curve') + ' for ' + plural(cage.faces.length, 'cage face') + '.<br>';
   }
   for (i = 0; i < objs.length; i++) objs.item(i).name = '';
+  if (r.jointFailures) markFailed(curves, owners, r.failedCurves, objs);
 
   show('SummaryPrompt', notes + plural(frames, 'pipe frame') + ', ' + plural(r.struts, 'strut') + ', ' +
     plural(r.nodes, 'node') + ', ' + plural(r.freeEnds, 'free end') +
