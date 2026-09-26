@@ -23,14 +23,14 @@
 			     MultiPipe2.js only when the selection spans two or more styles (at most eight). The rows are declared
 			     here and toggled by id, as MoI's own Chamfer does with its second distance row: a DistanceInput is a
 			     MoI custom element, so it is never injected as markup. -->
-			<tr id="style1tr" style="display:none;"><td id="style1name"></td><td><moi:DistanceInput id="style1radius" default="0.5" /></td></tr>
-			<tr id="style2tr" style="display:none;"><td id="style2name"></td><td><moi:DistanceInput id="style2radius" default="0.5" /></td></tr>
-			<tr id="style3tr" style="display:none;"><td id="style3name"></td><td><moi:DistanceInput id="style3radius" default="0.5" /></td></tr>
-			<tr id="style4tr" style="display:none;"><td id="style4name"></td><td><moi:DistanceInput id="style4radius" default="0.5" /></td></tr>
-			<tr id="style5tr" style="display:none;"><td id="style5name"></td><td><moi:DistanceInput id="style5radius" default="0.5" /></td></tr>
-			<tr id="style6tr" style="display:none;"><td id="style6name"></td><td><moi:DistanceInput id="style6radius" default="0.5" /></td></tr>
-			<tr id="style7tr" style="display:none;"><td id="style7name"></td><td><moi:DistanceInput id="style7radius" default="0.5" /></td></tr>
-			<tr id="style8tr" style="display:none;"><td id="style8name"></td><td><moi:DistanceInput id="style8radius" default="0.5" /></td></tr>
+			<tr id="style1tr" style="display:none;"><td><div id="style1name" class="hiddencommandui"></div></td><td><moi:DistanceInput id="style1radius" default="0.5" /></td></tr>
+			<tr id="style2tr" style="display:none;"><td><div id="style2name" class="hiddencommandui"></div></td><td><moi:DistanceInput id="style2radius" default="0.5" /></td></tr>
+			<tr id="style3tr" style="display:none;"><td><div id="style3name" class="hiddencommandui"></div></td><td><moi:DistanceInput id="style3radius" default="0.5" /></td></tr>
+			<tr id="style4tr" style="display:none;"><td><div id="style4name" class="hiddencommandui"></div></td><td><moi:DistanceInput id="style4radius" default="0.5" /></td></tr>
+			<tr id="style5tr" style="display:none;"><td><div id="style5name" class="hiddencommandui"></div></td><td><moi:DistanceInput id="style5radius" default="0.5" /></td></tr>
+			<tr id="style6tr" style="display:none;"><td><div id="style6name" class="hiddencommandui"></div></td><td><moi:DistanceInput id="style6radius" default="0.5" /></td></tr>
+			<tr id="style7tr" style="display:none;"><td><div id="style7name" class="hiddencommandui"></div></td><td><moi:DistanceInput id="style7radius" default="0.5" /></td></tr>
+			<tr id="style8tr" style="display:none;"><td><div id="style8name" class="hiddencommandui"></div></td><td><moi:DistanceInput id="style8radius" default="0.5" /></td></tr>
 			<tr><td>Node size:</td><td><moi:NumericInput id="nodesize" default="1.6" /></td></tr>
 			<!-- The number applies only with Auto off; MultiPipe2.js sets the same state when the options show. -->
 			<tr><td>Divisions:</td><td><moi:CheckButton id="auto" default="true" onclick="moi.ui.commandUI.divisions.disabled = this.value;">Auto</moi:CheckButton>

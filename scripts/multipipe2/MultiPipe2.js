@@ -176,12 +176,16 @@ function styleNames(styles) {
 function showStyleRows(styles, names, seed) {
   var ui = moi.ui, cui = ui.commandUI, i;
   if (styles.length < 2) return;
+  // Inside a UI-update block like every other toggle here; the label sits in a div, shown as the Summary div is.
+  // A label that fails to take must not end the run: the row still works without it.
+  ui.beginUIUpdate();
   ui.hideUI('radiustr');
   for (i = 0; i < styles.length; i++) {
     ui.showUI('style' + (i + 1) + 'tr');
-    cui['style' + (i + 1) + 'name'].innerHTML = escapeHTML(names[i]) + ':';
+    try { cui['style' + (i + 1) + 'name'].innerHTML = escapeHTML(names[i]) + ':'; ui.showUI('style' + (i + 1) + 'name'); } catch (e) {}
     if (seed) cui['style' + (i + 1) + 'radius'].value = cui.radius.value;
   }
+  ui.endUIUpdate();
 }
 // One radius per input entry, from the row its curve's style owns; null when the selection is on one style, and the
 // single Radius is used as before. Row values at or below zero are reported by style name, which the planner cannot
