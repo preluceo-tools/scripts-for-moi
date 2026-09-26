@@ -198,15 +198,15 @@ function styleRadii(owners, styles, names, errors) {
   return radii;
 }
 
-// The input curves meeting a joint that could not be built: named and left selected so the user can see which
-// ones defeated the command, and every other input curve deselected so only those stand out.
+// The input curves meeting a joint that could not be built: left selected so the user can see which ones
+// defeated the command, and every other input curve deselected so only those stand out. Names are not touched:
+// a scripted rename is not part of MoI's undo unit, so it would outlive an undo after Done.
 function markFailed(curves, owners, failed) {
   var bad = {}, i, obj;
   for (i = 0; i < failed.length; i++) bad[owners[failed[i]].id] = true;
   for (i = 0; i < curves.length; i++) {
     obj = curves.item(i);
-    if (bad[obj.id]) { obj.name = 'MultiPipe2 failed'; obj.selected = true; }
-    else obj.selected = false;
+    obj.selected = !!bad[obj.id];
   }
 }
 
@@ -245,7 +245,7 @@ function pass(curves, styles, names, seed) {
   var frames = frame ? r.pipeFrames - r.framesDropped : r.pipeFrames;
   var failures = r.jointFailures ? '<br>' + plural(r.jointFailures, 'joint') + ' could not be built; ' +
     (frame ? plural(r.framesDropped, 'pipe frame') + ' dropped. ' : '') +
-    'The curves there are named MultiPipe2 failed and selected.' : '';
+    'The curves there are selected.' : '';
 
   if (frame) {
     var build = r.jointFailures ? cage.partial : cage;
@@ -296,7 +296,7 @@ function MultiPipe2() {
   var curves = getCurves();
   if (!curves) return;
   curves.lockSelection();
-  // What the input curves looked like before the run, so Back and Cancel can put back the names and the selection
+  // What the input curves looked like before the run, so Back and Cancel can put back the selection
   // markFailed changes. The selection itself is held, so Back never asks for the curves again.
   var was = [], i;
   for (i = 0; i < curves.length; i++) was.push([curves.item(i).name, curves.item(i).selected]);
