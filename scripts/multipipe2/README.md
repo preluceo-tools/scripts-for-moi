@@ -31,7 +31,7 @@ cage into one smooth solid. No union, no fillet, nothing that can fail partway t
 
 https://github.com/user-attachments/assets/e1a72808-9ef2-41f1-998f-270c2b541f39
 
-### Earlier version
+### MultiPipe2 1.0.0
 
 https://github.com/user-attachments/assets/071b6773-6232-4697-a9c9-91e274a16de6
 
